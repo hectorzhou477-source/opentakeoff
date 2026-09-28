@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+web/dist/
+**/dist/
+
+# Python (optional AI sandbox)
+__pycache__/
+*.pyc
+.venv/
+venv/
+server/.venv/
+
+# Local env / secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Netlify CLI local state (never commit; the root netlify.toml IS committed)
+.netlify/
+**/.netlify/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.log
+
+# Agent/browser session artifacts (Playwright MCP traces, verification screenshots)
+.playwright-mcp/
+/*.png
+.claude/
+
+# node_modules symlinks too — the dir patterns above match only real directories,
+# which is how a worktree convenience symlink once got committed
+**/node_modules
+
+# MCP compiled dist (published to npm, never committed)
+mcp/dist/
+
+# MCPB bundle build output (release artifact, never committed)
+mcp/dist-mcpb/
+
+# Smithery-only MCPB build output (see scripts/build-smithery-mcpb.mjs), never committed
+mcp/dist-smithery/
+
+# Voice model artifacts (~45 MB) — staged by web/scripts/fetch-voice-model.mjs
+# into public/ for same-origin serving; never committed (RFC #59)
+web/public/models/
+
+# Coverage output (npm run test:coverage)
+**/coverage/
