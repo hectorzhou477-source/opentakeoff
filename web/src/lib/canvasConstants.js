@@ -1,3 +1,4 @@
+// Modified by Quantifin, 2026-09-28: localize user-facing editor labels; preserve data keys.
 // Pure data constants for the Takeoff Canvas — render/zoom budgets, snap
 // tuning, toolbar tool descriptors, and the flooring starter conditions.
 // No DOM, no React, no functions: values only, moved verbatim from
@@ -56,27 +57,27 @@ export { SNAP_CELL };   // snap-grid bucket, raster px (Spline runs 12 — its b
 
 // toolbar menus — STACK-style: the menu face shows the armed tool
 export const MEASURE_TOOLS = [
-  { id: "oneclick", icon: "oneClick", label: "One-Click Area", shortcut: "O" },
-  { id: "area", icon: "area", label: "Area", shortcut: "A" },
-  { id: "rect", icon: "rectTool", label: "Rectangle", shortcut: "R" },
-  { id: "linear", icon: "linear", label: "Linear", shortcut: "L" },
-  { id: "surface", icon: "surface", label: "Surface Area", shortcut: "S" },
-  { id: "count", icon: "count", label: "Count", shortcut: "C" },
-  { id: "symbol", icon: "symbol", label: "Symbol — marquee ONE instance, count every placement (#264)", shortcut: "Y" },
+  { id: "oneclick", icon: "oneClick", label: "一键面积", shortcut: "O" },
+  { id: "area", icon: "area", label: "面积", shortcut: "A" },
+  { id: "rect", icon: "rectTool", label: "矩形面积", shortcut: "R" },
+  { id: "linear", icon: "linear", label: "长度", shortcut: "L" },
+  { id: "surface", icon: "surface", label: "墙面面积", shortcut: "S" },
+  { id: "count", icon: "count", label: "计数", shortcut: "C" },
+  { id: "symbol", icon: "symbol", label: "符号计数", shortcut: "Y" },
 ];
 export const CUT_TOOLS = [
-  { id: "deduct", icon: "deduct", label: "Deduct shape", shortcut: "D" },
-  { id: "deduct-rect", icon: "deductRect", label: "Deduct rectangle", shortcut: "⇧D" },
+  { id: "deduct", icon: "deduct", label: "多边形扣减", shortcut: "D" },
+  { id: "deduct-rect", icon: "deductRect", label: "矩形扣减", shortcut: "⇧D" },
 ];
 export const MARKUP_TOOLS = [
-  { id: "highlighter", icon: "highlighter", label: "Highlighter", shortcut: "H" },
-  { id: "cloud", icon: "cloud", label: "Revision cloud" },
-  { id: "callout", icon: "callout", label: "Callout" },
-  { id: "text", icon: "textNote", label: "Text note" },
-  { id: "highlight", icon: "highlight", label: "Highlight box" },
+  { id: "highlighter", icon: "highlighter", label: "荧光标记", shortcut: "H" },
+  { id: "cloud", icon: "cloud", label: "修订云线" },
+  { id: "callout", icon: "callout", label: "引线标注" },
+  { id: "text", icon: "textNote", label: "文字备注" },
+  { id: "highlight", icon: "highlight", label: "高亮区域" },
   // N, not M — M is the push-to-talk dictation hold, globally
-  { id: "dimension", icon: "dimension", label: "Dimension line", shortcut: "N" },
-  { id: "image", icon: "image", label: "Image — marquee a region, or upload a file" },
+  { id: "dimension", icon: "dimension", label: "尺寸线", shortcut: "N" },
+  { id: "image", icon: "image", label: "图片 — 框选区域或上传文件" },
 ];
 export const MARKUP_IDS = MARKUP_TOOLS.map((t) => t.id);
 // highlighter inks — literal hex (SVG attrs; CSS vars don't resolve there).

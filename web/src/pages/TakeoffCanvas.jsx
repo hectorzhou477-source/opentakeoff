@@ -1,3 +1,4 @@
+// Modified by Quantifin, 2026-09-28: localize user-facing editor labels; preserve data keys.
 import { useAnnotationWorkbench } from '../components/AnnotationWorkbench.jsx';
 import { nativeTextRuns, markupPatch, applyMarkupPatch } from '../lib/annotationTools.js';
 import ReferencePins, { PinButton } from "../components/ReferencePins.jsx";
@@ -100,7 +101,8 @@ import { createDragCache, sheetContentSignature, dragFilename, downloadUrlEntry 
 import { counterRows } from "../lib/liveCounter.js";
 import LiveCounter from "../components/LiveCounter.jsx";
 import { loadProfiles } from "../lib/identity.js";
-import { resolveBranding, loadBrandingSelection } from "../lib/branding.js";
+import { loadBrandingSelection } from "../lib/branding.js";
+import { resolveQuantifinBranding } from "../lib/quantifinBranding.js";
 import { starPath, cloudPath, thinStroke, strokePathD, chiselRibbon, buildSnapGrid, nearestSnap, ANGLE_TOL, angleSnap, closedMetrics, polyWithHolesMetrics, openLen, pointInPoly, hitShape, arrowheadPath, distToSeg, reflectVertsNorm, ringSelfIntersects, minAreaRect } from "../lib/geometry.js";
 // Drawing style (draft chrome look) — one resolved token object (DS in JSX,
 // dsRef.current in the imperative movers) replaces the hardcoded cobalt/star
@@ -465,7 +467,7 @@ export default function TakeoffCanvas() {
   // ONLY: all stored takeoff math stays feet (lib/units contract), so toggling
   // never rewrites a shape, a scale, or a coverage rate. Browser default via
   // localStorage; a project that saved a units field overrides on hydrate.
-  const [units, setUnits] = useState(() => { try { return localStorage.getItem("opentakeoff_units") === "metric" ? "metric" : "imperial"; } catch { return "imperial"; } });
+  const [units, setUnits] = useState(() => { try { return localStorage.getItem("opentakeoff_units") === "imperial" ? "imperial" : "metric"; } catch { return "metric"; } });
   useEffect(() => { try { localStorage.setItem("opentakeoff_units", units); } catch { /* private mode */ } }, [units]);
   const [check, setCheck] = useState([]);             // Check tool: 0–2 stage-px points along a printed dimension
   const [checkStated, setCheckStated] = useState(""); // what the drawing says that dimension is
@@ -563,9 +565,9 @@ export default function TakeoffCanvas() {
   const workspacePrefs = useWorkspaceLayout();
   const [premiumOpen, setPremiumOpen] = useState(false);
   const premiumPrompted = useRef(false); // unprompted dialog: never twice in one app opening, even with storage blocked
-  const workspaceLayout = workspacePrefs.enabled;
+  const workspaceLayout = true; // Quantifin: unified editor chrome; retain layout arrangement preferences.
   const workspaceArrangement = workspacePrefs.layout;
-  const [workspaceNavigationOpen, setWorkspaceNavigationOpen] = useState(false);
+  const [workspaceNavigationOpen, setWorkspaceNavigationOpen] = useState(true);
   const [workspaceControlsOpen, setWorkspaceControlsOpen] = useState(false);
   const [workspaceDetailsOpen, setWorkspaceDetailsOpen] = useState(false);
   const [workspaceSearchOpen, setWorkspaceSearchOpen] = useState(false);
@@ -1497,25 +1499,25 @@ export default function TakeoffCanvas() {
     const otk = incoming.find((f) => isProjectArchive(f.name));
     if (otk) {
       await importProjectArchive(otk);
-      if (incoming.length > 1) setCommitMsg((m) => `${m} Other dropped files were ignored — open plans separately from a project archive.`);
+      if (incoming.length > 1) setCommitMsg((m) => `${m} 其余文件已忽略；请单独导入图纸。`);
       return;
     }
     // a dropped .otprofile is the working ENVIRONMENT (#299) — apply it, never
     // ingest it as a plan
     const prof = incoming.find((f) => isProfileFile(f.name));
     if (prof) { await importProfileFile(prof); return; }
-    setCommitMsg("Reading files…");
+    setCommitMsg("正在读取文件…");
     let pdfs = [], skipped = [];
     try { ({ pdfs, skipped } = await ingestFiles(incoming, { onProgress: setCommitMsg })); }
-    catch (e) { setCommitMsg(`Couldn't read those files: ${e.message || e}`); return; }
+    catch (e) { setCommitMsg(`读取文件失败：${e.message || e}`); return; }
     if (!pdfs.length) {
       setCommitMsg(skipped.length
-        ? `Nothing to open — ${skipped.length} file${skipped.length === 1 ? "" : "s"} skipped. OpenTakeoff reads PDFs, images, and .zip plan sets.`
-        : "No supported files found. Drop a PDF, an image, or a .zip plan set.");
+        ? `没有可打开的文件，已跳过 ${skipped.length} 个。支持 PDF、图片和 .zip 图纸包。`
+        : "未找到支持的文件。请拖入 PDF、图片或 .zip 图纸包。");
       return;
     }
     const results = [];
-    for (const f of pdfs) { try { results.push(await store.addPdf(f)); } catch (e) { setCommitMsg(`Couldn't open ${f.name}: ${e.message || e}`); } }
+    for (const f of pdfs) { try { results.push(await store.addPdf(f)); } catch (e) { setCommitMsg(`无法打开 ${f.name}：${e.message || e}`); } }
     await refreshSheets();
     // CO-1: a re-drop whose bytes CHANGED is a plan revision, not a re-open.
     // The store archived the old bytes; here the stale pdf.js docs must go
@@ -1530,7 +1532,7 @@ export default function TakeoffCanvas() {
       setDocEpoch((e) => e + 1);
     }
     const names = pdfs.map((f) => f.name);
-    const tail = skipped.length ? ` · ${skipped.length} skipped` : "";
+    const tail = skipped.length ? ` · 已跳过 ${skipped.length} 个文件` : "";
     if (names.length === 1) {
       setOpenTabs((t) => (t.includes(names[0]) ? t : [...t, names[0]]));
       goToSheet(names[0]);
@@ -1544,12 +1546,12 @@ export default function TakeoffCanvas() {
       const inked = (n) => shapes.some((s) => s.sheet_id === n || s.sheet_id.startsWith(n + "#"))
         || markups.some((m) => m.sheet_id === n || m.sheet_id.startsWith(n + "#"));
       const hot = revised.filter((r) => inked(r.name));
-      const label = (r) => `${r.name} → rev ${r.rev}`;
+      const label = (r) => `${r.name} → 修订 ${r.rev}`;
       setCommitMsg(hot.length
-        ? `Sheet changed under your markups: ${hot.map(label).join(", ")} — earlier revision kept; re-check the affected takeoff.`
-        : `Sheet updated: ${revised.map(label).join(", ")} — earlier revision kept.`);
+        ? `有批注的图纸已更新：${hot.map(label).join("、")}。旧版本已保留，请重新核对相关工程量。`
+        : `图纸已更新：${revised.map(label).join("、")}。旧版本已保留。`);
     } else {
-      setCommitMsg(`Opened ${names.length} sheet${names.length === 1 ? "" : "s"}${tail}.`);
+      setCommitMsg(`已打开 ${names.length} 张图纸${tail}。`);
     }
   }
   // The empty-project landing view (the Drive picker for an empty cloud project,
@@ -2399,16 +2401,16 @@ export default function TakeoffCanvas() {
       const imported = parseTakeoffImport(await file.text());
       const { payload, note } = mergeTakeoffImport(buildPayload(), imported, sheets.map((s) => s.name));
       restoreSavedPayload(payload);
-      const parts = [`Imported ${note.shapes_added} shape${note.shapes_added === 1 ? "" : "s"}`];
-      if (note.shapes_pending) parts.push(`${note.shapes_pending} dashed pending your review — Accept turns pencil to ink`);
-      if (note.conditions_added) parts.push(`${note.conditions_added} new condition${note.conditions_added === 1 ? "" : "s"}`);
-      if (note.conditions_merged) parts.push(`${note.conditions_merged} matched your finish tags`);
-      if (note.unknown_files.length) parts.push(`some shapes reference ${note.unknown_files.join(", ")} — open that file to see them`);
-      setCommitMsg(parts.join(" · ") + ".");
+      const parts = [`已导入 ${note.shapes_added} 项测量`];
+      if (note.shapes_pending) parts.push(`${note.shapes_pending} 项以虚线显示，待人工复核`);
+      if (note.conditions_added) parts.push(`新增 ${note.conditions_added} 个饰面分类`);
+      if (note.conditions_merged) parts.push(`${note.conditions_merged} 个饰面标签已匹配`);
+      if (note.unknown_files.length) parts.push(`部分图形引用 ${note.unknown_files.join("、")}，打开对应文件后可查看`);
+      setCommitMsg(parts.join(" · ") + "。");
     } catch (e) {
       // module copy already speaks "Couldn't…" (the sticky danger convention);
       // anything unexpected gets wrapped into it rather than aging out unread
-      setCommitMsg(String(e?.message || "").startsWith("Couldn't") ? e.message : `Couldn't import takeoff: ${e?.message || e}`);
+      setCommitMsg(`导入算量数据失败：${e?.message || e}`);
     }
   };
 
@@ -2430,7 +2432,7 @@ export default function TakeoffCanvas() {
     const base = (projectName || "takeoff").trim().replace(/[^\w.\- ]+/g, "").replace(/\s+/g, "-").replace(/^[-.]+|[-.]+$/g, "") || "takeoff";
     downloadText(`${base}.takeoff.json`, JSON.stringify(payload, null, 2), "application/json");
     const n = shapes.length;
-    setCommitMsg(`Exported ${base}.takeoff.json — ${n} takeoff${n === 1 ? "" : "s"}, ${conditions.length} condition${conditions.length === 1 ? "" : "s"}. The plan PDF isn't in it: to restore, open the same PDF, then Import takeoff.`);
+    setCommitMsg(`已导出 ${base}.takeoff.json：${n} 项测量、${conditions.length} 个饰面分类。文件不含图纸；恢复时请先打开原 PDF，再导入算量数据。`);
   };
 
   // "Clear workspace" (#301) — the deliberate start-fresh: every stored PDF
@@ -2455,8 +2457,8 @@ export default function TakeoffCanvas() {
     reconcileAfterRemoval("", await refreshSheets());
     restoreSavedPayload(emptyAnnotations());
     setCommitMsg(saved
-      ? `Workspace cleared — ${names.length} PDF${names.length === 1 ? "" : "s"} removed. The takeoff was snapshotted first: Revisions → restore brings it back (re-open the same PDFs to see its shapes).`
-      : `Workspace cleared — ${names.length} PDF${names.length === 1 ? "" : "s"} removed.`);
+      ? `工作区已清空，移除 ${names.length} 个 PDF。算量数据已先保存快照，可从修订记录恢复；重新打开原 PDF 后可查看图形。`
+      : `工作区已清空，移除 ${names.length} 个 PDF。`);
   };
 
   // "Export project archive…" (#300) — the whole job as ONE portable .otk:
@@ -2464,7 +2466,7 @@ export default function TakeoffCanvas() {
   // of the #285 pair: Export takeoff is the annotation record alone (open the
   // same PDF to restore); this is the archive that carries its own paper.
   const exportProjectArchive = async () => {
-    if (!sheets.length) { setCommitMsg("Couldn't export project: no plans are open."); return; }
+    if (!sheets.length) { setCommitMsg("无法导出项目：尚未打开图纸。"); return; }
     const base = (projectName || "project").trim().replace(/[^\w.\- ]+/g, "").replace(/\s+/g, "-").replace(/^[-.]+|[-.]+$/g, "") || "project";
     try {
       const data = await buildProjectArchive({
@@ -2475,9 +2477,9 @@ export default function TakeoffCanvas() {
         onProgress: setCommitMsg,
       });
       downloadArchive(`${base}.otk`, data);
-      setCommitMsg(`Exported ${base}.otk — ${sheets.length} PDF${sheets.length === 1 ? "" : "s"} + the full takeoff (${shapes.length} shape${shapes.length === 1 ? "" : "s"}). Self-contained: open it on any machine, or hand it to another estimator.`);
+      setCommitMsg(`已导出 ${base}.otk：包含 ${sheets.length} 个 PDF 和 ${shapes.length} 项测量，可在其他设备打开。`);
     } catch (e) {
-      setCommitMsg(`Couldn't export project: ${e?.message || e}`);
+      setCommitMsg(`导出项目失败：${e?.message || e}`);
     }
   };
 
@@ -2486,14 +2488,14 @@ export default function TakeoffCanvas() {
   // snapshotted first so opening an archive is never a silent overwrite.
   const importProjectArchive = async (file) => {
     try {
-      setCommitMsg(`Opening ${file.name}…`);
+      setCommitMsg(`正在打开 ${file.name}…`);
       const { takeoff, pdfs } = await parseProjectArchive(new Uint8Array(await file.arrayBuffer()));
       if (shapes.length || conditions.length || markups.length) {
         try { await store.saveSnapshot(`Before opening ${file.name} — ${new Date().toLocaleString()}`, buildPayload()); }
         catch { /* best-effort — the open continues; archives are additive to PDFs */ }
       }
       for (const f of pdfs) {
-        setCommitMsg(`Restoring ${f.name}…`);
+        setCommitMsg(`正在恢复 ${f.name}…`);
         await store.addPdf(f);        // same-name different-bytes archives a revision (CO-1), never a silent overwrite
         evictDoc(f.name);             // stale docs must re-read the restored bytes
       }
@@ -2502,9 +2504,9 @@ export default function TakeoffCanvas() {
       await refreshSheets();
       restoreSavedPayload(takeoff);
       const n = Array.isArray(takeoff.shapes) ? takeoff.shapes.length : 0;
-      setCommitMsg(`Opened ${file.name} — ${pdfs.length} PDF${pdfs.length === 1 ? "" : "s"}, ${n} takeoff${n === 1 ? "" : "s"}.${shapes.length || conditions.length ? " Your previous takeoff was snapshotted — Revisions restores it." : ""}`);
+      setCommitMsg(`已打开 ${file.name}：${pdfs.length} 个 PDF、${n} 项测量。${shapes.length || conditions.length ? "原算量数据已保存快照，可从修订记录恢复。" : ""}`);
     } catch (e) {
-      setCommitMsg(String(e?.message || "").startsWith("Couldn't") ? e.message : `Couldn't open project: ${e?.message || e}`);
+      setCommitMsg(`打开项目失败：${e?.message || e}`);
     }
   };
 
@@ -2521,13 +2523,13 @@ export default function TakeoffCanvas() {
     stampLibRef.current = lib; setStampLib(lib);
   };
   const profileSummary = (p) =>
-    `${(p.condition_templates || []).length} condition template${(p.condition_templates || []).length === 1 ? "" : "s"}, ${(p.material_library || []).length} material${(p.material_library || []).length === 1 ? "" : "s"}, ${(p.stamp_library?.stamps || []).length} stamp${(p.stamp_library?.stamps || []).length === 1 ? "" : "s"}, ${(p.report_templates || []).length} report template${(p.report_templates || []).length === 1 ? "" : "s"}`;
+    `${(p.condition_templates || []).length} 个饰面模板、${(p.material_library || []).length} 种材料、${(p.stamp_library?.stamps || []).length} 个图章、${(p.report_templates || []).length} 个报表模板`;
   const exportProfileFile = async () => {
     try {
       const p = await buildProfile();
       downloadText("opentakeoff-profile.otprofile", JSON.stringify(p, null, 2), "application/json");
-      setCommitMsg(`Exported opentakeoff-profile.otprofile — ${profileSummary(p)}. Import it on another machine to carry your setup over.`);
-    } catch (e) { setCommitMsg(`Couldn't export profile: ${e?.message || e}`); }
+      setCommitMsg(`已导出 opentakeoff-profile.otprofile：${profileSummary(p)}。可在其他设备导入此配置。`);
+    } catch (e) { setCommitMsg(`导出配置失败：${e?.message || e}`); }
   };
   const backupProfileFile = async () => {
     const backup = await buildProfile();
@@ -2540,9 +2542,9 @@ export default function TakeoffCanvas() {
       await backupProfileFile();
       const n = await applyProfile(p);
       await refreshLibraries();
-      setCommitMsg(`Applied profile${p.name ? ` "${p.name}"` : ""} — ${n.templates} condition template${n.templates === 1 ? "" : "s"}, ${n.materials} material${n.materials === 1 ? "" : "s"}, ${n.stamps} stamp${n.stamps === 1 ? "" : "s"}, ${n.reportTemplates} report template${n.reportTemplates === 1 ? "" : "s"}. Your previous setup downloaded as opentakeoff-profile-backup.otprofile.`);
+      setCommitMsg(`已应用配置${p.name ? `“${p.name}”` : ""}：${n.templates} 个饰面模板、${n.materials} 种材料、${n.stamps} 个图章、${n.reportTemplates} 个报表模板。原配置已下载为 opentakeoff-profile-backup.otprofile。`);
     } catch (e) {
-      setCommitMsg(String(e?.message || "").startsWith("Couldn't") ? e.message : `Couldn't apply profile: ${e?.message || e}`);
+      setCommitMsg(`应用配置失败：${e?.message || e}`);
     }
   };
   const resetProfile = async () => {
@@ -2550,8 +2552,8 @@ export default function TakeoffCanvas() {
       await backupProfileFile();
       await resetProfileDefaults();
       await refreshLibraries();
-      setCommitMsg("Profile reset to OpenTakeoff defaults — your previous setup downloaded as opentakeoff-profile-backup.otprofile (Import profile restores it). Project takeoffs are untouched.");
-    } catch (e) { setCommitMsg(`Couldn't reset profile: ${e?.message || e}`); }
+      setCommitMsg("已恢复默认配置；原配置已下载为 opentakeoff-profile-backup.otprofile，可随时重新导入。项目算量数据不受影响。");
+    } catch (e) { setCommitMsg(`恢复默认配置失败：${e?.message || e}`); }
   };
 
   // markups MUST be in the deps (a cloud/callout/text or an RFI link is real work);
@@ -5354,7 +5356,7 @@ export default function TakeoffCanvas() {
       // capture time — markedset reads it directly, no per-export resolution.)
       // branding mode decides the cover identity + wordmark + parent credit;
       // resolved per-project (folderId "" ⇒ the single browser-only setting)
-      const brand = resolveBranding({ ...(await loadBrandingSelection(projectIdFromUrl())), profiles: loadProfiles().profiles });
+      const brand = resolveQuantifinBranding({ ...(await loadBrandingSelection(projectIdFromUrl())), profiles: loadProfiles().profiles });
       const { bytes, filename } = await buildMarkedSetPdf({
         projectName, clientInfo, company: brand.company, credit: brand.credit, coverTitle: brand.coverTitle,
         dark: darkMode, units, sheets: sheetMeta, shapes, markups: exportMarkups, approvals, rfis, conditions,
@@ -5388,7 +5390,7 @@ export default function TakeoffCanvas() {
       // only the RFIs this sheet's markups actually reference — markers keep
       // their numbers without dragging the whole project register along
       const linked = new Set(sheetMarkups.map((m) => m.rfi_id).filter(Boolean));
-      const brand = resolveBranding({ ...(await loadBrandingSelection(projectIdFromUrl())), profiles: loadProfiles().profiles });
+      const brand = resolveQuantifinBranding({ ...(await loadBrandingSelection(projectIdFromUrl())), profiles: loadProfiles().profiles });
       const { bytes } = await buildMarkedSetPdf({
         projectName, clientInfo, company: brand.company, credit: brand.credit, coverTitle: brand.coverTitle,
         dark: darkMode, units, sheets: [{ key: k, ...parseSheetKey(k), label: tabLabel(k) }],
@@ -7905,7 +7907,7 @@ export default function TakeoffCanvas() {
       <button key={id} type="button" onClick={onArm || (() => setTool(id))}
         title={shortcut ? keyText(`${label} · ${shortcut}`) : label} aria-label={label} aria-pressed={armed}
         style={{ position: "relative", width: "var(--ctl-l)", height: "var(--ctl-l)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid transparent", borderRadius: "var(--r-1)", background: armed ? (opts.tint || "var(--cobalt)") : "transparent", color: armed ? "var(--accent-contrast)" : (opts.tint || "var(--ink)"), boxShadow: armed ? "var(--glow)" : "none", cursor: "pointer", lineHeight: 1 }}>
-        <Icon name={iconName} size={17} />
+        <Icon name={iconName} size={17} /><span className="qe-tool-label">{({select:"选择",area:"面积",rect:"矩形",linear:"长度",surface:"墙面",count:"计数",symbol:"符号",deduct:"扣减","deduct-rect":"矩形扣减",markup:"标注",approve:"审核章",calibrate:"校准"})[id] || label.split(" — ")[0].slice(0,6)}</span>
         {shortcut && <span aria-hidden="true" style={{ position: "absolute", bottom: 1, right: 3, fontFamily: "var(--f-mono)", fontSize: 8, color: armed ? "var(--accent-contrast)" : "var(--ink-muted)", opacity: armed ? 0.75 : 1 }}>{keyText(shortcut)}</span>}
       </button>
     );
@@ -7922,53 +7924,53 @@ export default function TakeoffCanvas() {
   const levelOfPage = (n) => sheetLevels[n > 1 ? `${active}#${n}` : active] || "";
   const soloStitch = sheetGroup.length === 1 && isStitchKey(sheetGroup[0]) ? stitchById[sheetGroup[0]] : null;
   const sheetChipLabel = sheetGroup.length
-    ? (soloStitch ? `Stitched — ${soloStitch.name}` : `${sheetGroup.length} sheets side-by-side`)
-    : `${levelOfPage(page) ? `${levelOfPage(page)} · ` : ""}${pageLabels[page] || (pageCount > 1 ? `Sheet ${page}` : active)}${pageCount > 1 ? ` · ${page}/${pageCount}` : ""}`;
+    ? (soloStitch ? `拼接图纸 — ${soloStitch.name}` : `${sheetGroup.length} 张图纸并排`)
+    : `${levelOfPage(page) ? `${levelOfPage(page)} · ` : ""}${pageLabels[page] || (pageCount > 1 ? `图纸 ${page}` : active)}${pageCount > 1 ? ` · ${page}/${pageCount}` : ""}`;
   const sheetMenuItems = [];
   if (!sheetGroup.length && pageCount > 1) {
-    sheetMenuItems.push({ section: "Sheets in this set" });
-    for (let n = 1; n <= pageCount; n++) sheetMenuItems.push({ id: `pg-${n}`, label: `${levelOfPage(n) ? `${levelOfPage(n)} · ` : ""}${pageLabels[n] || `Sheet ${n}`}`, shortcut: `${n}/${pageCount}`, active: n === page, onSelect: () => setPage(n) });
+    sheetMenuItems.push({ section: "当前文件的图纸" });
+    for (let n = 1; n <= pageCount; n++) sheetMenuItems.push({ id: `pg-${n}`, label: `${levelOfPage(n) ? `${levelOfPage(n)} · ` : ""}${pageLabels[n] || `图纸 ${n}`}`, shortcut: `${n}/${pageCount}`, active: n === page, onSelect: () => setPage(n) });
   }
   if (!sheetGroup.length && sheets.length > 1) {
-    sheetMenuItems.push({ section: "Files" });
+    sheetMenuItems.push({ section: "文件" });
     for (const s of sheets) sheetMenuItems.push({ id: `f-${s.name}`, label: s.name, active: s.name === active, onSelect: () => { setActive(s.name); setPage(1); } });
   }
   if (sheetMenuItems.length && (sheetGroup.length || lastGroup.length >= 2)) sheetMenuItems.push("divider");
   if (sheetGroup.length) sheetMenuItems.push(soloStitch
-    ? { id: "ungroup", label: "Leave stitch — back to one sheet", title: "Back to a single sheet (the stitch's first member) — the stitch keeps its takeoffs and reopens from the gallery or its tab", onSelect: ungroup }
-    : { id: "ungroup", label: "Ungroup — back to one sheet", title: "Back to one sheet — you land on the sheet you were last working; every sheet keeps its takeoffs and markups", onSelect: ungroup });
-  if (!sheetGroup.length && lastGroup.length >= 2) sheetMenuItems.push({ id: "regroup", label: `Regroup (${lastGroup.length})`, title: `Side-by-side again with the same ${lastGroup.length} sheets — each keeps its own scale, takeoffs and markups`, onSelect: regroup });
+    ? { id: "ungroup", label: "退出拼接，返回单张图纸", title: "拼接图纸的测量记录仍会保留，可从缩略图或标签重新打开", onSelect: ungroup }
+    : { id: "ungroup", label: "取消并排，返回单张图纸", title: "每张图纸的测量和批注都会保留", onSelect: ungroup });
+  if (!sheetGroup.length && lastGroup.length >= 2) sheetMenuItems.push({ id: "regroup", label: `重新并排（${lastGroup.length} 张）`, title: "重新并排上次的图纸；各图纸的比例尺、测量和批注保持不变", onSelect: regroup });
   if (sheetMenuItems.length) sheetMenuItems.push("divider");
-  sheetMenuItems.push({ id: "gallery", icon: "sheets", label: "Open gallery…", shortcut: "G", onSelect: () => setView("gallery") });
+  sheetMenuItems.push({ id: "gallery", icon: "sheets", label: "打开图纸缩略图…", shortcut: "G", onSelect: () => setView("gallery") });
   sheetMenuItems.push({
-    id: "export-takeoff", icon: "document", label: "Export takeoff…",
-    title: "Save this whole takeoff to a JSON file on your computer — every shape, condition, scale, markup and RFI, in the app's own format. Import takeoff reads it back as an editable takeoff (the plan PDF isn't in the file: open it first, then import).",
+    id: "export-takeoff", icon: "document", label: "导出算量数据…",
+    title: "将测量、饰面、比例尺、批注和 RFI 保存为 JSON。文件不含原始图纸，恢复时请先打开图纸。",
     onSelect: exportTakeoffFile,
   });
   sheetMenuItems.push({
-    id: "import-takeoff", icon: "document", label: "Import takeoff…",
-    title: "Load a takeoff JSON — the app's own export or an agent session's export_takeoff. Machine shapes land dashed in their condition colors for your review; on merge, your calibration, conditions, and workspace win.",
+    id: "import-takeoff", icon: "document", label: "导入算量数据…",
+    title: "载入本产品或智能代理导出的算量 JSON。机器生成的图形以虚线显示，等待人工复核。",
     onSelect: () => importInputRef.current?.click(),
   });
   sheetMenuItems.push({
-    id: "export-project", icon: "document", label: "Export project archive…",
-    title: "Save the WHOLE job as one portable .otk file — every plan PDF plus the full takeoff. Open it on any machine (drop it like a plan, or Add plans), archive it, or hand it to another estimator; unlike Export takeoff, the plans travel inside.",
+    id: "export-project", icon: "document", label: "导出完整项目…",
+    title: "将图纸和全部算量数据保存为可转移的 .otk 文件，可用于归档或在其他设备打开。",
     onSelect: exportProjectArchive,
   });
-  sheetMenuItems.push({ section: "Profile — your templates, stamps & report setup" });
+  sheetMenuItems.push({ section: "个人配置：模板、图章与报表" });
   sheetMenuItems.push({
-    id: "export-profile", icon: "document", label: "Export profile…",
-    title: "Save your working environment — condition templates, material library, stamps, report templates/theme/columns — as one portable .otprofile. Import it on another machine or hand a company setup to another estimator; project takeoffs are never in it.",
+    id: "export-profile", icon: "document", label: "导出个人配置…",
+    title: "将饰面模板、材料库、图章和报表设置保存为 .otprofile；不含项目测量数据。",
     onSelect: exportProfileFile,
   });
   sheetMenuItems.push({
-    id: "import-profile", icon: "document", label: "Import profile…",
-    title: "Replace your working environment with a .otprofile (you can also drop the file on the canvas). Your current setup downloads as a backup first — importing that backup restores it. Project takeoffs are untouched.",
+    id: "import-profile", icon: "document", label: "导入个人配置…",
+    title: "用 .otprofile 替换当前工作配置；操作前会自动下载备份，不影响项目测量数据。",
     onSelect: () => profileInputRef.current?.click(),
   });
   sheetMenuItems.push({
-    id: "reset-profile", icon: "undo", label: "Reset profile to defaults",
-    title: "Back to a stock OpenTakeoff setup — empty template/material libraries, the default stamps, no report customization. Your current setup downloads as a backup first; project takeoffs are untouched.",
+    id: "reset-profile", icon: "undo", label: "恢复默认配置",
+    title: "清空自定义模板和材料库，恢复默认图章和报表设置；当前配置会先备份，项目测量数据不受影响。",
     onSelect: resetProfile,
   });
 
@@ -7980,23 +7982,23 @@ export default function TakeoffCanvas() {
   // scale gate: an agent-set scale no human has confirmed wears the warning
   // face until it's confirmed (menu row below) or replaced by a human act
   const scaleNeedsConfirm = !!unitsPerPx && scaleUnconfirmed[focusPanel.key] === false;
-  const scaleFace = !unitsPerPx ? "Set scale…" : scaleNeedsConfirm ? `⚠ ${stdValue || "custom"} — confirm` : `${scaleMismatch ? "≠" : "✓"} ${stdValue || "custom"}`;
+  const scaleFace = !unitsPerPx ? "设置比例尺…" : scaleNeedsConfirm ? `⚠ ${stdValue || "自定义"} — 待确认` : `${scaleMismatch ? "≠" : "✓"} ${stdValue || "自定义"}`;
   const scaleFaceStyle = !unitsPerPx
     ? { border: "1px dashed var(--c-danger)", color: "var(--c-danger)" }
     : scaleMismatch || scaleNeedsConfirm
       ? { border: "1px solid var(--c-warning)", color: "var(--c-warning)" }
       : { border: "1px solid var(--c-positive)", color: "var(--c-positive)" };
   const scaleTitle = scaleNeedsConfirm
-    ? `An agent set this sheet's scale — no person has confirmed it. Check it against a printed dimension (K), then confirm from this menu; quantities stand on this number.`
+    ? "比例尺由智能代理设置，尚未经人工确认。请先用图纸上的已知尺寸核对（K），再在菜单中确认。"
     : scaleMismatch
-      ? `You set ${stdValue}, but the plan notes ${scaleDet.label} on ${labelFor(focusPanel)} — double-check before tracing.`
-      : `Set the scale for ${labelFor(focusPanel)} — remembered per sheet${groupKeys.length > 1 ? " (targets the sheet you last clicked)" : ""}`;
+      ? `当前设置为 ${stdValue}，但图纸 ${labelFor(focusPanel)} 标注 ${scaleDet.label}。请先核对。`
+      : `设置 ${labelFor(focusPanel)} 的比例尺；每张图纸独立保存${groupKeys.length > 1 ? "，当前作用于最后点击的图纸" : ""}。`;
   const scaleItems = [];
   if (scaleNeedsConfirm) {
     scaleItems.push({
       id: "confirm-scale", icon: "check", tint: "var(--c-warning)",
-      label: "Confirm agent-set scale",
-      title: `This scale arrived from an agent takeoff and no person has verified it. Best practice: Check a dimension (K) against a printed dimension string first — a wrong scale poisons every quantity on the sheet.`,
+      label: "确认 AI 设置的比例尺",
+      title: "此比例尺来自智能代理，尚无人确认。建议先用已知标注尺寸核对（K）；错误比例尺会影响整张图纸的工程量。",
       onSelect: () => confirmScale(focusPanel.key),
     });
     scaleItems.push("divider");
@@ -8005,21 +8007,21 @@ export default function TakeoffCanvas() {
   // sheet — the oops-hatch for a mistyped recalibrate (ephemeral, one slot)
   if (prevScale && prevScale.key === focusPanel.key && scales[focusPanel.key] !== prevScale.upp) {
     const wasLabel = STANDARD_SCALES.find((x) => Math.abs(x.upp - prevScale.upp) < 1e-9)?.label
-      || (prevScale.source === "calibrated" ? "calibrated" : "custom");
+      || (prevScale.source === "calibrated" ? "已校准" : "自定义");
     scaleItems.push({
       id: "revert-scale", icon: "undo",
-      label: `Revert scale (was ${wasLabel})`,
-      title: `Put ${labelFor(focusPanel)} back on the scale the last rescale replaced and re-price its takeoffs. One step, kept only until the sheet view changes — reverting is itself revertible.`,
+      label: `恢复上次比例尺（${wasLabel}）`,
+      title: `将 ${labelFor(focusPanel)} 恢复到调整前的比例尺，并重新计算测量量。此操作仅在切换图纸前可用。`,
       onSelect: revertScale,
     });
     scaleItems.push("divider");
   }
   if (scaleDet) {
-    scaleItems.push({ section: "From the plan" });
+    scaleItems.push({ section: "图纸标注" });
     scaleItems.push({
       id: "use-detected", icon: "target", tint: "var(--c-positive)",
-      label: `Plan says ${scaleDet.label}${scaleDet.multi ? " ±" : ""} — use it`,
-      title: `The plan notes ${scaleDet.label} on ${labelFor(focusPanel)}${scaleDet.multi ? " — this sheet shows several scales (details are often larger); confirm against a known dimension" : ""}. Hover previews a calibrated guide bar on the sheet so you can sanity-check it.`,
+      label: `图纸标注 ${scaleDet.label}${scaleDet.multi ? " ±" : ""} — 应用`,
+      title: `图纸 ${labelFor(focusPanel)} 标注 ${scaleDet.label}${scaleDet.multi ? "，且存在多个比例尺；请对照已知尺寸确认" : ""}。悬停可预览比例尺校准线。`,
       onSelect: () => { rescaleSheet(focusPanel.key, scaleDet.upp); setScaleSources((s) => ({ ...s, [focusPanel.key]: "detected" })); showScaleGuide(focusPanel.key, scaleDet.upp, scaleDet.label); },
       // hover previews the guide bar behind the open menu — only while the
       // sheet is still UNSCALED (upstream's gate: on a scaled sheet the bar
@@ -8030,12 +8032,12 @@ export default function TakeoffCanvas() {
       onHover: (on) => { if (on) { if (!scales[focusPanel.key]) showScaleGuide(focusPanel.key, scaleDet.upp, scaleDet.label, true); } else clearPreviewGuide(); },
     });
   }
-  scaleItems.push({ section: "Standard" });
+  scaleItems.push({ section: "标准比例" });
   for (const s of STANDARD_SCALES) scaleItems.push({ id: s.label, label: s.label, active: stdValue === s.label, onSelect: () => { rescaleSheet(focusPanel.key, s.upp); setScaleSources((sc) => ({ ...sc, [focusPanel.key]: "standard" })); showScaleGuide(focusPanel.key, s.upp, s.label); } });
   scaleItems.push("divider");
-  scaleItems.push({ id: "calibrate", icon: "calibrate", label: "Calibrate two points…", title: "Calibrate — click two points of a known dimension", active: tool === "calibrate", onSelect: () => setTool("calibrate") });
-  scaleItems.push({ id: "check", icon: "check", label: "Check a dimension…", shortcut: "K", title: "Check a dimension (K) — click both ends of a printed dimension string; compares the measured length against what the drawing says", active: tool === "check", onSelect: () => setTool("check") });
-  scaleItems.push({ note: "Remembered per sheet." });
+  scaleItems.push({ id: "calibrate", icon: "calibrate", label: "两点校准比例…", title: "校准 — 点击已知尺寸的两个端点", active: tool === "calibrate", onSelect: () => setTool("calibrate") });
+  scaleItems.push({ id: "check", icon: "check", label: "核对已知尺寸…", shortcut: "K", title: "点击图纸上标注尺寸的两个端点，将实测距离与标注值比较", active: tool === "check", onSelect: () => setTool("check") });
+  scaleItems.push({ note: "每张图纸独立保存比例尺。" });
 
   // One-Click fill sensitivity — lives in the render menu now, so arming
   // One-Click never reshapes the toolbar. Detents at Strict / Balanced /
@@ -8055,12 +8057,12 @@ export default function TakeoffCanvas() {
   const activeDrawStyle = DRAW_STYLES[drawStyleId] || DRAW_STYLES[DRAW_STYLE_IDS[0]];
   const draftMenu = (
     <ToolMenu
-      title={`Draft — drawing style (${activeDrawStyle.label}), outline while drawing, straight or curve`}
+      title={`绘图样式（${activeDrawStyle.label}）、空心轮廓、直线或曲线`}
       onOpenChange={onMenuDepth}
       faceStyle={{ padding: "4px 6px" }}
-      face={<><StylePreview t={activeDrawStyle} w={26} h={16} />{workspaceLayout && <span>Draft</span>}</>}
+      face={<><StylePreview t={activeDrawStyle} w={26} h={16} />{workspaceLayout && <span>绘图样式</span>}</>}
       items={[
-        { section: "Drawing style" },
+        { section: "绘图样式" },
         ...DRAW_STYLE_IDS.map((id) => {
           const t = DRAW_STYLES[id];
           const on = id === drawStyleId;
@@ -8076,15 +8078,15 @@ export default function TakeoffCanvas() {
           ) };
         }),
         "divider",
-        { id: "draftoutline", checked: draftOutline, stayOpen: true, icon: "area", label: "Outline area while drawing", onSelect: () => setDraftOutline(!draftOutline),
-          title: "Draw Area / Deduct / Zone as an open outline (no fill) while tracing — it still commits closed on Enter or double-click." },
+        { id: "draftoutline", checked: draftOutline, stayOpen: true, icon: "area", label: "绘制时仅显示轮廓", onSelect: () => setDraftOutline(!draftOutline),
+          title: "绘制面积、扣减或区域时暂不填充；按 Enter 或双击后仍会闭合图形。" },
         "divider",
-        { section: "Bend" },
-        { id: "straight", checked: !curveMode, stayOpen: true, disabled: !curvable, label: "Straight", onSelect: () => setCurveMode(false),
-          title: "Straight places corners." },
-        { id: "curve", checked: curveMode, stayOpen: true, disabled: !curvable, icon: "curve", label: "Curve", shortcut: "Q", onSelect: () => setCurveMode(true),
-          title: "Curve takes two clicks — one anywhere ON the bow, then its far end — and lays the unique circle through those and the vertex you were on, so it sits on a radius wall instead of near it. Q flips it once a trace is going; ⌥-click places the OTHER kind for one point." },
-        { note: curvable ? "Switch as often as you like inside one measurement." : "Arm Area, Line, Cut Out or Surface Area to bend a trace." },
+        { section: "线段形态" },
+        { id: "straight", checked: !curveMode, stayOpen: true, disabled: !curvable, label: "直线", onSelect: () => setCurveMode(false),
+          title: "按直线连接顶点。" },
+        { id: "curve", checked: curveMode, stayOpen: true, disabled: !curvable, icon: "curve", label: "曲线", shortcut: "Q", onSelect: () => setCurveMode(true),
+          title: "连续点击圆弧上的一点和终点，与起点共同确定圆弧。绘制中可按 Q 切换，按 Alt 点击可临时使用另一模式。" },
+        { note: curvable ? "一次测量中可随时切换。" : "请先选择面积、长度、扣减或墙面工具。" },
       ]}
     />
   );
@@ -8097,23 +8099,23 @@ export default function TakeoffCanvas() {
   }));
   const workspaceDockHandle = (dock, label) => workspaceLayout && <DockHandle dock={dock} label={label} locked={workspaceArrangement.locked} onDrag={setWorkspaceDragging} onMove={workspacePrefs.move} />;
   const workspaceActions = [
-    ...MEASURE_TOOLS.filter((t) => t.id !== "oneclick" || oneClickEnabled()).concat(CUT_TOOLS).map((t) => ({ id: `tool-${t.id}`, label: t.label, shortcut: t.shortcut, group: "Measuring tools", run: () => { setView("canvas"); setTool(t.id); } })),
-    { id: "select", label: "Select and edit a measurement", group: "Tools", shortcut: "V", run: () => setTool("select") },
-    { id: "zone", label: "Zone check — what's inside a traced region", group: "Tools", run: () => { setView("canvas"); setTool("zone"); } },
-    { id: "undo", label: "Undo", group: "Edit", shortcut: "⌘Z", run: () => poly.length ? dropLastPoint() : undoShapeCommand() },
-    { id: "redo", label: "Redo", group: "Edit", shortcut: "⇧⌘Z", run: redoShapeCommand },
-    { id: "finish", label: "Finish shape", group: "Edit", shortcut: "↵", disabled: !finishOk, run: finishShape },
-    { id: "copy", label: "Copy selected", group: "Edit", shortcut: "⌘C", disabled: !selectedId, run: copySelected },
-    { id: "paste", label: "Paste", group: "Edit", shortcut: "⌘V", disabled: !clipRef.current.length, run: () => pasteClipboard() },
-    { id: "report", label: "Open report", group: "Workspace", run: () => setShowReport(true) },
-    { id: "work", label: "Open work and review", group: "Workspace", run: () => setAgentOpen(true) },
-    { id: "layout", label: "Arrange and save your layout", group: "Workspace", run: () => setWorkspaceLayoutOpen(true) },
-    { id: "fit", label: "Fit sheet to view", group: "View", disabled: !stage.w, run: () => fitToView(stage.w, stage.h) },
-    { id: "focus", label: "Focus mode", group: "View", shortcut: "F", run: toggleFocusMode },
-    { id: "theme", label: workspaceArrangement.look === "light" ? "Backlit graphite" : "Studio light", group: "Appearance", run: () => workspacePrefs.update({ look: workspaceArrangement.look === "light" ? "graphite" : "light" }) },
-    { id: "addcondition", label: "Add condition", group: "Conditions", run: addCondition },
-    ...scaleItems.filter((item) => item.onSelect).map((item) => ({ ...item, id: `scale-${item.id}`, group: "Scale", run: item.onSelect })),
-    ...sheetMenuItems.filter((item) => item.onSelect).map((item) => ({ ...item, id: `file-${item.id}`, group: "Plans and files", run: item.onSelect })),
+    ...MEASURE_TOOLS.filter((t) => t.id !== "oneclick" || oneClickEnabled()).concat(CUT_TOOLS).map((t) => ({ id: `tool-${t.id}`, label: t.label, shortcut: t.shortcut, group: "测量工具", run: () => { setView("canvas"); setTool(t.id); } })),
+    { id: "select", label: "选择并编辑测量", group: "测量工具", shortcut: "V", run: () => setTool("select") },
+    { id: "zone", label: "区域核量", group: "测量工具", run: () => { setView("canvas"); setTool("zone"); } },
+    { id: "undo", label: "撤销", group: "编辑", shortcut: "⌘Z", run: () => poly.length ? dropLastPoint() : undoShapeCommand() },
+    { id: "redo", label: "重做", group: "编辑", shortcut: "⇧⌘Z", run: redoShapeCommand },
+    { id: "finish", label: "完成测量", group: "编辑", shortcut: "↵", disabled: !finishOk, run: finishShape },
+    { id: "copy", label: "复制所选", group: "编辑", shortcut: "⌘C", disabled: !selectedId, run: copySelected },
+    { id: "paste", label: "粘贴", group: "编辑", shortcut: "⌘V", disabled: !clipRef.current.length, run: () => pasteClipboard() },
+    { id: "report", label: "打开工程量报表", group: "工作区", run: () => setShowReport(true) },
+    { id: "work", label: "打开测量与复核", group: "工作区", run: () => setAgentOpen(true) },
+    { id: "layout", label: "调整并保存布局", group: "工作区", run: () => setWorkspaceLayoutOpen(true) },
+    { id: "fit", label: "适合窗口", group: "视图", disabled: !stage.w, run: () => fitToView(stage.w, stage.h) },
+    { id: "focus", label: "专注模式", group: "视图", shortcut: "F", run: toggleFocusMode },
+    { id: "theme", label: workspaceArrangement.look === "light" ? "深色工作台" : "浅色工作台", group: "外观", run: () => workspacePrefs.update({ look: workspaceArrangement.look === "light" ? "graphite" : "light" }) },
+    { id: "addcondition", label: "新增饰面", group: "饰面分类", run: addCondition },
+    ...scaleItems.filter((item) => item.onSelect).map((item) => ({ ...item, id: `scale-${item.id}`, group: "比例尺", run: item.onSelect })),
+    ...sheetMenuItems.filter((item) => item.onSelect).map((item) => ({ ...item, id: `file-${item.id}`, group: "图纸与文件", run: item.onSelect })),
     ...workspaceSheets.map((sheet) => ({ id: `sheet-${sheet.key}`, label: sheet.label, group: sheet.file, run: () => openSheets([sheet.key], false) })),
   ];
 
@@ -8188,27 +8190,27 @@ export default function TakeoffCanvas() {
         onPremium={() => setPremiumOpen(true)} onReport={() => setShowReport(true)} onFocus={toggleFocusMode} onClassic={() => workspacePrefs.setEnabled(false)}
         onControls={() => setWorkspaceControlsOpen((v) => !v)} controlsOpen={workspaceControlsOpen} onSearch={() => setWorkspaceSearchOpen(true)}
         pinControl={pinButton}
-        panelTools={<div className="calm-panel-tools" role="group" aria-label="Quantity and review tools">
-          {panelBtn(() => setLeftTab((t) => (t === "markup" ? null : "markup")), "document", "Markup list — existing clouds, callouts, and notes", leftTab === "markup", markupCount)}
-          {panelBtn(() => setLeftTab((t) => (t === "stamp" ? null : "stamp")), "stamp", "Stamps — reusable annotations dropped click-to-place", leftTab === "stamp", stampLib.stamps.length)}
-          {panelBtn(() => setLeftTab((t) => (t === "rfi" ? null : "rfi")), "rfi", "RFI register — raise, track, and export Requests For Information", leftTab === "rfi", rfis.length)}
-          {rollByCond.size > 0 && panelBtn(() => setRollPanelOpen((o) => !o), "roll", "Roll goods — the cut diagram, cutting order, and figured order footage", rollPanelOpen, rollByCond.size)}
-          {layerEntries.length > 0 && panelBtn(() => setLayersOpen((o) => !o), "layers", "PDF layers — drawing layers", layersOpen, layerEntries.reduce((n, e) => n + e.layers.length, 0))}
-          {panelBtn(() => setShowRevisions(true), "revisions", "Revisions — save the takeoff at each bid revision, compare what moved", showRevisions)}
+         panelTools={<div className="calm-panel-tools" role="group" aria-label="算量与复核工具">
+           {panelBtn(() => setLeftTab((t) => (t === "markup" ? null : "markup")), "document", "批注列表：云线、引线和文字备注", leftTab === "markup", markupCount)}
+           {panelBtn(() => setLeftTab((t) => (t === "stamp" ? null : "stamp")), "stamp", "图章：可重复使用的图纸标注", leftTab === "stamp", stampLib.stamps.length)}
+           {panelBtn(() => setLeftTab((t) => (t === "rfi" ? null : "rfi")), "rfi", "RFI 问题记录：提出、跟踪和导出", leftTab === "rfi", rfis.length)}
+           {rollByCond.size > 0 && panelBtn(() => setRollPanelOpen((o) => !o), "roll", "卷材：排版、裁切顺序及订货长度", rollPanelOpen, rollByCond.size)}
+           {layerEntries.length > 0 && panelBtn(() => setLayersOpen((o) => !o), "layers", "PDF 图层", layersOpen, layerEntries.reduce((n, e) => n + e.layers.length, 0))}
+           {panelBtn(() => setShowRevisions(true), "revisions", "修订记录：保存和比较不同版本的算量", showRevisions)}
         </div>}
-        layoutMenu={<button type="button" onClick={() => setWorkspaceLayoutOpen(true)} title="Arrange panels, lock positions, and save layouts"><Icon name="sliders" size={16} />Layout</button>}
-        fileMenu={<><ToolMenu title="Files and workspace" face={<span>File</span>} onOpenChange={onMenuDepth} items={sheetMenuItems} /><PresenceChip bridge={store.syncBridge} /><AccountChip note={cloudMode ? "Synced to Google Drive" : "Local workspace"} onOpenChange={onMenuDepth} /></>}
-        conditionControl={<><label className="calm-condition-label" htmlFor="workspace-condition">Condition</label><select id="workspace-condition" value={activeCond || ""} onChange={(e) => activateCondition(e.target.value)} title={tool === "select" && selectedId ? "Reassign selected measurement" : "Condition for the next measurement"}>
-          {!conditions.length && <option value="">No conditions</option>}{conditions.map((c) => <option key={c.id} value={c.id}>{c.finish_tag}</option>)}</select>
-          <button type="button" onClick={addCondition} title="Add condition" aria-label="Add condition"><Icon name="plus" size={14} /></button>
-          <button type="button" onClick={() => setWorkspaceDetailsOpen((v) => !v)} aria-expanded={workspaceDetailsOpen} disabled={!aCond}>Properties</button></>}
-        history={<><button type="button" onClick={() => poly.length ? dropLastPoint() : undoShapeCommand()} title="Undo (⌘Z)" aria-label="Undo"><Icon name="undo" size={16} /></button><button type="button" onClick={redoShapeCommand} title="Redo (⇧⌘Z)" aria-label="Redo"><span style={{ display: "flex", transform: "scaleX(-1)" }}><Icon name="undo" size={16} /></span></button></>}
-        aids={<><button type="button" aria-pressed={tool === "zone"} onClick={() => setTool((t) => (t === "zone" ? "select" : "zone"))} title="Zone check — trace a region (an apartment, a wing) to read every condition's quantities inside it, materials included. Nothing is saved; the outline clears when you leave the tool."><Icon name="zone" size={15} />Zone</button><button type="button" aria-pressed={snapOn} onClick={() => setSnapOn((v) => !v)} title="Snap to plan lines/corners (beta)"><Icon name="snap" size={15} />Snap</button><button type="button" aria-pressed={angleOn} onClick={() => setAngleOn((v) => !v)} title="45°/90° angle guides"><Icon name="angle" size={15} />45°</button>{draftMenu}<span className="calm-separator" />{annotations.control}</>}
-        action={finishOk && <button type="button" onClick={finishShape}>Finish ({poly.length})</button>}
-        scaleMenu={<><button type="button" onClick={() => setUnits((u) => u === "metric" ? "imperial" : "metric")} title="Switch display units">{units === "metric" ? "m" : "ft"}</button><ToolMenu title={scaleTitle} onOpenChange={onScaleMenuDepth} face={<span>{scaleFace}</span>} faceStyle={{ fontFamily: "var(--f-mono)", fontSize: 11.5, ...scaleFaceStyle }} menuStyle={{ minWidth: 250 }} items={scaleItems} /></>}
+         layoutMenu={<button type="button" onClick={() => setWorkspaceLayoutOpen(true)} title="调整面板位置、锁定并保存布局"><Icon name="sliders" size={16} />面板布局</button>}
+         fileMenu={<><ToolMenu title="文件与工作空间" face={<span>文件</span>} onOpenChange={onMenuDepth} items={sheetMenuItems} /><PresenceChip bridge={store.syncBridge} /><AccountChip note={cloudMode ? "已同步到 Google Drive" : "本地工作区"} onOpenChange={onMenuDepth} /></>}
+         conditionControl={<><label className="calm-condition-label" htmlFor="workspace-condition">饰面分类</label><select id="workspace-condition" value={activeCond || ""} onChange={(e) => activateCondition(e.target.value)} title={tool === "select" && selectedId ? "为选中测量重新分配饰面" : "下一个测量所用的饰面分类"}>
+          {!conditions.length && <option value="">暂无饰面分类</option>}{conditions.map((c) => <option key={c.id} value={c.id}>{c.finish_tag}</option>)}</select>
+          <button type="button" onClick={addCondition} title="新增饰面" aria-label="新增饰面"><Icon name="plus" size={14} /></button>
+          <button type="button" onClick={() => setWorkspaceDetailsOpen((v) => !v)} aria-expanded={workspaceDetailsOpen} disabled={!aCond}>属性设置</button></>}
+        history={<><button type="button" onClick={() => poly.length ? dropLastPoint() : undoShapeCommand()} title="撤销（Ctrl+Z）" aria-label="撤销"><Icon name="undo" size={16} /></button><button type="button" onClick={redoShapeCommand} title="重做（Ctrl+Shift+Z）" aria-label="重做"><span style={{ display: "flex", transform: "scaleX(-1)" }}><Icon name="undo" size={16} /></span></button></>}
+         aids={<><button type="button" aria-pressed={tool === "zone"} onClick={() => setTool((t) => (t === "zone" ? "select" : "zone"))} title="绘制临时区域，查看其中各饰面及材料的工程量；退出工具后轮廓清除，不保存"><Icon name="zone" size={15} />区域核量</button><button type="button" aria-pressed={snapOn} onClick={() => setSnapOn((v) => !v)} title="捕捉图纸线条和端点（测试功能）"><Icon name="snap" size={15} />端点捕捉</button><button type="button" aria-pressed={angleOn} onClick={() => setAngleOn((v) => !v)} title="45°／90° 角度辅助线"><Icon name="angle" size={15} />45°</button>{draftMenu}<span className="calm-separator" />{annotations.control}</>}
+        action={finishOk && <button type="button" onClick={finishShape}>完成测量 ({poly.length})</button>}
+         scaleMenu={<><button type="button" onClick={() => setUnits((u) => u === "metric" ? "imperial" : "metric")} title="切换显示单位">{units === "metric" ? "m" : "ft"}</button><ToolMenu title={scaleTitle} onOpenChange={onScaleMenuDepth} face={<span>{scaleFace}</span>} faceStyle={{ fontFamily: "var(--f-mono)", fontSize: 11.5, ...scaleFaceStyle }} menuStyle={{ minWidth: 250 }} items={scaleItems} /></>}
       />}
-      {workspaceLayout && !workspaceArrangement.readout && selShape?.measure_role === "surface_area" && <div className="calm-property-editor"><label>Selected wall height <input aria-label="Selected wall height" type="number" min="0" step={heightStep(units)} value={shapeHDraft ?? dimInputStr(selShape.height_ft, units, "height")} onChange={(e) => { setShapeHDraft(e.target.value); setShapeHeight(e.target.value); }} onBlur={() => { if (shapeHDraft != null) setShapeHeight(shapeHDraft); setShapeHDraft(null); }} /></label><span>{heightUnit(units)} → {fa(selShape.computed?.area_sf || 0)}</span><button type="button" onClick={clearShapeHeight}>Use condition height</button></div>}
-      {!focusMode && workspaceLayout && workspaceDetailsOpen && aCond && <div className="calm-property-editor"><strong>{aCond.finish_tag}</strong><ConditionAppearanceEditor cond={aCond} onUpdateCond={updateCond} onSetCondParam={setCondParam} onAssignAttr={assignAttr} conditionColumns={conditionColumns} layout="row" units={units} /><button type="button" onClick={() => setWorkspaceDetailsOpen(false)}>Close properties</button></div>}
+      {workspaceLayout && !workspaceArrangement.readout && selShape?.measure_role === "surface_area" && <div className="calm-property-editor"><label>选中墙面高度 <input aria-label="选中墙面高度" type="number" min="0" step={heightStep(units)} value={shapeHDraft ?? dimInputStr(selShape.height_ft, units, "height")} onChange={(e) => { setShapeHDraft(e.target.value); setShapeHeight(e.target.value); }} onBlur={() => { if (shapeHDraft != null) setShapeHeight(shapeHDraft); setShapeHDraft(null); }} /></label><span>{heightUnit(units)} → {fa(selShape.computed?.area_sf || 0)}</span><button type="button" onClick={clearShapeHeight}>使用饰面默认高度</button></div>}
+      {!focusMode && workspaceLayout && workspaceDetailsOpen && aCond && <div className="calm-property-editor"><strong>{aCond.finish_tag}</strong><ConditionAppearanceEditor cond={aCond} onUpdateCond={updateCond} onSetCondParam={setCondParam} onAssignAttr={assignAttr} conditionColumns={conditionColumns} layout="row" units={units} /><button type="button" onClick={() => setWorkspaceDetailsOpen(false)}>关闭属性</button></div>}
       {workspaceLayout && <><WorkspaceCommandMenu open={workspaceSearchOpen} onClose={() => setWorkspaceSearchOpen(false)} actions={workspaceActions} onOpenChange={onMenuDepth} /><WorkspaceLayoutDialog open={workspaceLayoutOpen} onClose={() => setWorkspaceLayoutOpen(false)} prefs={workspacePrefs} onOpenChange={onMenuDepth} /></>}
       {!focusMode && (!workspaceLayout || workspaceControlsOpen) && (
       <div data-topbar style={{ display: "flex", gap: 7, alignItems: "center", padding: "0 14px 6px", borderBottom: "1px solid var(--ink-faint)", background: "var(--paper-bright)", whiteSpace: "nowrap" }}>
@@ -8222,11 +8224,11 @@ export default function TakeoffCanvas() {
         <strong style={{ fontFamily: "var(--f-display)", fontSize: 15, color: "var(--ink)", letterSpacing: "-0.02em" }}>open<span style={{ fontStyle: "italic", color: "var(--cobalt)" }}>takeoff</span></strong>
         <button type="button" onClick={() => fileInputRef.current?.click()} title="Open plans — PDF, image, or a .zip plan set (or just drag them onto the canvas)"
           style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", border: "1px solid var(--ink)", background: "var(--ink)", color: "var(--paper-bright)", cursor: "pointer", fontWeight: 600, fontSize: 12.5, lineHeight: 1 }}>
-          <Icon name="plus" size={14} />Open</button>
+          <Icon name="plus" size={14} />导入图纸</button>
         <button type="button" onClick={() => setView("gallery")}
           title={`Plan set — the visual gallery; open one or several sheets (G)${sheetGroup.length ? ` · ${sheetGroup.length} side-by-side now` : ""}`}
           style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", border: `1px solid ${sheetGroup.length ? "var(--cobalt)" : "var(--ink-faint)"}`, background: sheetGroup.length ? "var(--cobalt)" : "transparent", color: sheetGroup.length ? "var(--paper-bright)" : "var(--ink)", cursor: "pointer", fontWeight: 600, fontSize: 12.5, lineHeight: 1 }}>
-          <Icon name="sheets" size={15} />Sheets
+          <Icon name="sheets" size={15} />图纸目录
         </button>
         {pinButton}
         {sheets.length > 0 && (
@@ -8250,10 +8252,10 @@ export default function TakeoffCanvas() {
           <ToolMenu
             title="Edit takeoffs"
             onOpenChange={onMenuDepth}
-            face={<span>Edit</span>}
+            face={<span>编辑</span>}
             items={[
               { id: "copy", icon: "copy", label: "Copy", shortcut: "⌘C", disabled: !selectedId, onSelect: copySelected },
-              { id: "paste", icon: "paste", label: "Paste", shortcut: "⌘V", disabled: !clipRef.current.length, onSelect: () => pasteClipboard() },
+              { id: "paste", icon: "paste", label: "粘贴", shortcut: "⌘V", disabled: !clipRef.current.length, onSelect: () => pasteClipboard() },
               { id: "dup", icon: "duplicate", label: "Duplicate", shortcut: "⌘D", disabled: !selectedId, onSelect: duplicateSelected },
               "divider",
               { id: "flipH", label: "Flip Horizontal", disabled: !selectedId, onSelect: () => flipSelected("h") },
@@ -8263,7 +8265,7 @@ export default function TakeoffCanvas() {
               { id: "finish", icon: "check", label: `Finish shape${poly.length ? ` (${poly.length} pts)` : ""}`, shortcut: "↵", disabled: !finishOk, onSelect: finishShape },
               { id: "undopt", icon: "undo", label: "Undo last point", shortcut: "⌘Z", disabled: !poly.length, onSelect: dropLastPoint },
               { id: "undoshape", icon: "undo", label: "Undo last shape", disabled: !visibleShapes.length, onSelect: undoLast },
-              { id: "redo", label: "Redo", shortcut: "⇧⌘Z", onSelect: redoShapeCommand },
+              { id: "redo", label: "重做", shortcut: "⇧⌘Z", onSelect: redoShapeCommand },
               "divider",
               { id: "del", icon: "close", label: "Delete selected", shortcut: "⌫", disabled: !selectedId, tint: "var(--c-danger)", onSelect: deleteSelected },
             ]}
@@ -8281,11 +8283,11 @@ export default function TakeoffCanvas() {
           <button onClick={() => setTool((t) => (t === "zone" ? "select" : "zone"))}
             title="Zone check — trace a region (an apartment, a wing) to read every condition's quantities inside it, materials included. Nothing is saved; the outline clears when you leave the tool."
             style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", border: `1px solid ${tool === "zone" ? "var(--cobalt)" : "var(--ink-faint)"}`, background: tool === "zone" ? "var(--cobalt)" : "transparent", color: tool === "zone" ? "var(--paper-bright)" : "var(--ink)", cursor: "pointer", fontWeight: 600, fontSize: 12.5, lineHeight: 1 }}>
-            <Icon name="zone" size={15} />Zone
+            <Icon name="zone" size={15} />区域核量
           </button>
           <button onClick={() => setSnapOn((v) => !v)} title="Snap to plan lines/corners (beta)"
             style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", border: `1px solid ${snapOn ? "var(--c-positive)" : "var(--ink-faint)"}`, background: snapOn ? "var(--c-positive)" : "transparent", color: snapOn ? "var(--paper-bright)" : "var(--ink)", cursor: "pointer", fontWeight: 600, fontSize: 12.5, lineHeight: 1 }}>
-            <Icon name="snap" size={15} />Snap
+            <Icon name="snap" size={15} />端点捕捉
           </button>
           <button onClick={() => setAngleOn((v) => !v)} title="45°/90° angle guides — the next segment locks to the 45° family as you draw (hold ⇧ to force the lock at any angle)"
             style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", border: `1px solid ${angleOn ? "var(--cobalt)" : "var(--ink-faint)"}`, background: angleOn ? "var(--cobalt)" : "transparent", color: angleOn ? "var(--paper-bright)" : "var(--ink)", cursor: "pointer", fontWeight: 600, fontSize: 12.5, lineHeight: 1 }}>
@@ -8361,7 +8363,7 @@ export default function TakeoffCanvas() {
           <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 6, minWidth: 150 }}>
             {markupDraft && (tool === "cloud" || tool === "callout" || tool === "highlight" || tool === "dimension") && <span style={{ fontSize: 11, color: "var(--cobalt)" }}>click the {tool === "callout" ? "label spot" : tool === "dimension" ? "other end" : "opposite corner"}…</span>}
             {finishOk && (
-              <button onClick={finishShape} title="Finish shape (↵ or double-click)" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", border: "none", background: "var(--c-positive)", color: "var(--paper-bright)", cursor: "pointer", fontWeight: 600, fontSize: 12.5, lineHeight: 1 }}><Icon name="check" size={14} />Finish ({poly.length})</button>
+              <button onClick={finishShape} title="Finish shape (↵ or double-click)" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", border: "none", background: "var(--c-positive)", color: "var(--paper-bright)", cursor: "pointer", fontWeight: 600, fontSize: 12.5, lineHeight: 1 }}><Icon name="check" size={14} />完成测量 ({poly.length})</button>
             )}
             {proposal?.regions.length > 0 && (
               <button onClick={createProposal} title="Create the selected takeoff(s) (↵). ⌫ removes the last click; Esc discards the selection." style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", border: "none", background: "var(--c-positive)", color: "var(--paper-bright)", cursor: "pointer", fontWeight: 600, fontSize: 12.5, lineHeight: 1 }}><Icon name="check" size={14} />Create ({proposal.regions.length})</button>
@@ -8391,10 +8393,10 @@ export default function TakeoffCanvas() {
         <button type="button" ref={workspaceLayout ? undefined : workButtonRef} aria-expanded={agentOpen} onClick={() => setAgentOpen((v) => !v)}
           title="Work and review — measurements, provenance, and agent proposals"
           style={{ minHeight: "var(--ctl-m)", padding: "var(--sp-1) var(--sp-3)", border: "1px solid var(--cobalt)", background: agentOpen ? "var(--cobalt)" : "transparent", color: agentOpen ? "var(--accent-contrast)" : "var(--cobalt)", cursor: "pointer", fontSize: "var(--fs-s)", fontWeight: 600 }}>
-          Work{agentRunning ? " · Working" : shapes.some((s) => s.origin?.reviewed === false) ? ` · ${shapes.filter((s) => s.origin?.reviewed === false).length}` : ""}
+          测量与复核{agentRunning ? " · Working" : shapes.some((s) => s.origin?.reviewed === false) ? ` · ${shapes.filter((s) => s.origin?.reviewed === false).length}` : ""}
         </button>
         <button onClick={() => setShowReport(true)} disabled={!conditions.length} title="Open the takeoff report — per-condition breakdown with waste, plus CSV / JSON export."
-          style={{ padding: "8px 14px", border: "none", background: conditions.length ? "var(--ink)" : "var(--text-faint)", color: "var(--paper-bright)", cursor: conditions.length ? "pointer" : "default", fontWeight: 700, fontFamily: "var(--f-mono)", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase" }}>Report</button>
+          style={{ padding: "8px 14px", border: "none", background: conditions.length ? "var(--ink)" : "var(--text-faint)", color: "var(--paper-bright)", cursor: conditions.length ? "pointer" : "default", fontWeight: 700, fontFamily: "var(--f-mono)", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase" }}>工程量报表</button>
         {/* ⋯ overflow — rarely-used project controls, so the row never wraps
             and nothing shifts position mid-work (issue #61's contract). */}
         <ToolMenu
@@ -8445,7 +8447,7 @@ export default function TakeoffCanvas() {
           style={{ padding: "5px 14px", borderBottom: "1px solid var(--ink-faint)", background: "var(--paper-bright)" }}>
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
             <span title="Quick-access conditions — drag a condition here (or use a row's pushpin) to pin it, up to 9. Press 1–9 to activate by this order; click a chip to activate; double-click to open the panel."
-              style={{ fontFamily: "var(--f-mono)", fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--ink-muted)" }}>Conditions</span>
+              style={{ fontFamily: "var(--f-mono)", fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--ink-muted)" }}>饰面分类</span>
             {paletteConds.length === 0 ? (
               <span style={{ fontSize: 11.5, color: "var(--ink-muted)", fontStyle: "italic", padding: "3px 8px", border: "1px dashed var(--ink-faint)" }}>drag conditions here (or pin a row) for 1-9 one-click access</span>
             ) : paletteConds.map((c) => {
@@ -8496,7 +8498,7 @@ export default function TakeoffCanvas() {
           ⊞ to side-by-side, ✕ to close; the dropdown lists every open sheet */}
       {!focusMode && openTabs.length > 0 && (
         <div data-sheet-tabs style={{ display: "flex", gap: 5, alignItems: "center", padding: "5px 14px", flexWrap: openTabs.length > MANY_TABS ? "nowrap" : "wrap", borderBottom: "1px solid var(--ink-faint)", background: "var(--paper-bright)", minWidth: 0 }}>
-          <span style={{ fontFamily: "var(--f-mono)", fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--ink-muted)", flexShrink: 0 }}>Sheets</span>
+          <span style={{ fontFamily: "var(--f-mono)", fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--ink-muted)", flexShrink: 0 }}>图纸目录</span>
           {openTabs.length > MANY_TABS && (
             <button type="button" onClick={() => scrollTabStrip(-1)} title="Scroll sheets left" aria-label="Scroll sheets left" style={{ flexShrink: 0, padding: "4px 5px", border: "1px solid var(--ink-faint)", background: "transparent", color: "var(--ink)", cursor: "pointer", display: "inline-flex" }}><Icon name="chevronLeft" size={12} /></button>
           )}
@@ -8540,7 +8542,7 @@ export default function TakeoffCanvas() {
           from the panel header, persisted with the panel prefs. */}
       {!focusMode && !workspaceLayout && panelPrefs.strip && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "7px 14px", flexWrap: "wrap", borderBottom: "1px solid var(--ink-faint)", background: "var(--paper-bright)" }}>
-          <span style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4, color: "var(--ink-muted)" }}>Conditions</span>
+          <span style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4, color: "var(--ink-muted)" }}>饰面分类</span>
           {conditions.map((c, i) => {
             const on = c.id === activeCond;
             // the 1–9 badge follows the same rule as the hotkeys: palette order
@@ -8562,11 +8564,11 @@ export default function TakeoffCanvas() {
       {/* calibration prompt */}
       {tool === "calibrate" && (
         <div style={{ padding: "8px 14px", background: "var(--paper-bright)", borderBottom: "1px solid var(--hairline-warm)", fontSize: 14 }}>
-          {calib.length < 2 ? <span>Custom scale: click two points along a known dimension ({calib.length}/2). Tip: use the longest dimension. (Or just pick a standard scale above.)</span> : (
-            <span>Real length:{" "}
-              <input name="calibration-length" type="number" value={pendingLen} onChange={(e) => setPendingLen(e.target.value)} onKeyDown={(e) => e.key === "Enter" && applyCalibration()} placeholder={units === "metric" ? "meters" : "feet"} autoFocus style={{ width: 90, padding: 5, borderRadius: 0, border: "1px solid var(--ink-faint)" }} /> {units === "metric" ? "m" : "ft"}
-              <button onClick={applyCalibration} style={{ marginLeft: 8, padding: "5px 12px", borderRadius: 0, border: "none", background: "var(--ink)", color: "var(--paper-bright)", cursor: "pointer" }}>Apply</button>
-              <button onClick={() => setCalib([])} style={{ marginLeft: 6, padding: "5px 10px", borderRadius: 0, border: "1px solid var(--ink-faint)", background: "transparent", cursor: "pointer" }}>Reset</button>
+          {calib.length < 2 ? <span>比例校准：点击已知尺寸的两个端点（{calib.length}/2）。建议选择较长尺寸，也可在上方选用标准比例。</span> : (
+            <span>实际长度：{" "}
+              <input name="calibration-length" type="number" value={pendingLen} onChange={(e) => setPendingLen(e.target.value)} onKeyDown={(e) => e.key === "Enter" && applyCalibration()} placeholder={units === "metric" ? "米" : "英尺"} autoFocus style={{ width: 90, padding: 5, borderRadius: 0, border: "1px solid var(--ink-faint)" }} /> {units === "metric" ? "m" : "ft"}
+              <button onClick={applyCalibration} style={{ marginLeft: 8, padding: "5px 12px", borderRadius: 0, border: "none", background: "var(--ink)", color: "var(--paper-bright)", cursor: "pointer" }}>应用</button>
+              <button onClick={() => setCalib([])} style={{ marginLeft: 6, padding: "5px 10px", borderRadius: 0, border: "1px solid var(--ink-faint)", background: "transparent", cursor: "pointer" }}>重置</button>
             </span>
           )}
         </div>
@@ -8579,7 +8581,7 @@ export default function TakeoffCanvas() {
           {check.length < 2 ? (
             <span>Check a dimension: click both ends of a printed dimension ({check.length}/2). The measured length shows here — compare it with what the drawing says.</span>
           ) : checkCross ? (
-            <span style={{ color: "var(--c-danger)" }}>Check on one sheet — those two clicks landed on different sheets. <button onClick={() => { setCheck([]); setCheckStated(""); }} style={{ marginLeft: 6, padding: "5px 10px", borderRadius: 0, border: "1px solid var(--ink-faint)", background: "transparent", cursor: "pointer" }}>Reset</button></span>
+            <span style={{ color: "var(--c-danger)" }}>Check on one sheet — those two clicks landed on different sheets. <button onClick={() => { setCheck([]); setCheckStated(""); }} style={{ marginLeft: 6, padding: "5px 10px", borderRadius: 0, border: "1px solid var(--ink-faint)", background: "transparent", cursor: "pointer" }}>重置</button></span>
           ) : !checkUpp ? (
             <span style={{ color: "var(--c-danger)" }}>No scale set for {labelFor(checkPanel)} — pick a standard scale or calibrate first, then check it here.</span>
           ) : checkPx <= 0 ? (
@@ -8605,7 +8607,7 @@ export default function TakeoffCanvas() {
               {checkStatedFeet > 0 && (
                 <button onClick={recalibrateFromCheck} style={{ marginLeft: 8, padding: "5px 12px", borderRadius: 0, border: "none", background: "var(--ink)", color: "var(--paper-bright)", cursor: "pointer" }}>Recalibrate to this</button>
               )}
-              <button onClick={() => { setCheck([]); setCheckStated(""); }} style={{ marginLeft: 6, padding: "5px 10px", borderRadius: 0, border: "1px solid var(--ink-faint)", background: "transparent", cursor: "pointer" }}>Reset</button>
+              <button onClick={() => { setCheck([]); setCheckStated(""); }} style={{ marginLeft: 6, padding: "5px 10px", borderRadius: 0, border: "1px solid var(--ink-faint)", background: "transparent", cursor: "pointer" }}>重置</button>
             </span>
           )}
         </div>
@@ -8613,22 +8615,22 @@ export default function TakeoffCanvas() {
 
       {/* canvas + issue desk */}
       <div data-canvas-workspace style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0, position: "relative" /* anchors the narrow-screen panel overlay */ }}>
-       {workspaceLayout && <><WorkspaceNavigator open={!focusMode && workspaceNavigationOpen} items={workspaceSheets} current={sheetKey} onSelect={(key) => openSheets([key], false)} onClose={() => setWorkspaceNavigationOpen(false)} onGallery={() => { setView("gallery"); setWorkspaceNavigationOpen(false); }} dockSide={workspaceArrangement.sheets} width={workspaceArrangement.sheetWidth} dockHandle={workspaceDockHandle("sheets", "Sheets")} /><DockTargets dragging={workspaceDragging} /></>}
+       {workspaceLayout && <><WorkspaceNavigator open={!focusMode && workspaceNavigationOpen} items={workspaceSheets} current={sheetKey} onSelect={(key) => openSheets([key], false)} onClose={() => setWorkspaceNavigationOpen(false)} onGallery={() => { setView("gallery"); setWorkspaceNavigationOpen(false); }} dockSide={workspaceArrangement.sheets} width={workspaceArrangement.sheetWidth} dockHandle={workspaceDockHandle("sheets", "图纸")} /><DockTargets dragging={workspaceDragging} /></>}
        {/* tool rail — machined faces grouped by MCP module (the concept shell).
            Individual tiles replace deck 2's Measure/Cut Out menus; Markup keeps
            its variety flyout on one tile (five markup kinds don't earn five
            faces). Lives in the canvas row so docked panels + canvas reflow
            beside it; survives focus mode — it IS the tool access. */}
        {view === "canvas" && (
-       <nav data-tool-rail data-dock-side={workspaceLayout ? workspaceArrangement.tools : undefined} role="toolbar" aria-label="Tools" style={{ order: workspaceLayout ? workspaceArrangement.tools === "right" ? 30 : -30 : undefined, width: "var(--rail-w)", flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--sp-1)", paddingTop: "var(--sp-2)", borderRight: "1px solid var(--ink-faint)", background: "var(--paper-bright)", overflowY: "auto", overflowX: "visible" }}>
-         {workspaceDockHandle("tools", "Tools")}
-         {railLabel("SEL")}
-         {railTile("select", "select", "Select — pick a takeoff, drag points; drag open canvas to pan", "V")}
-         {railLabel("MEAS")}
+       <nav data-tool-rail data-dock-side={workspaceLayout ? workspaceArrangement.tools : undefined} role="toolbar" aria-label="工具" style={{ order: workspaceLayout ? workspaceArrangement.tools === "right" ? 30 : -30 : undefined, width: "var(--rail-w)", flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--sp-1)", paddingTop: "var(--sp-2)", borderRight: "1px solid var(--ink-faint)", background: "var(--paper-bright)", overflowY: "auto", overflowX: "visible" }}>
+         {workspaceDockHandle("tools", "工具")}
+         {railLabel("选择")}
+         {railTile("select", "select", "选择 — 编辑测量顶点，拖动空白处平移", "V")}
+         {railLabel("测量")}
          {MEASURE_TOOLS.filter((t) => t.id !== "oneclick" || oneClickEnabled()).map((t) => railTile(t.id, t.icon, t.label, t.shortcut))}
-         {railLabel("CUT")}
+         {railLabel("扣减")}
          {CUT_TOOLS.map((t) => railTile(t.id, t.icon, t.label, t.shortcut, null, { tint: "var(--c-danger)" }))}
-         {railLabel("MARK")}
+         {railLabel("标注")}
          <span ref={(el) => { if (el) markTileTopRef.current = el.getBoundingClientRect().top; }} style={{ position: "relative", display: "inline-flex" }}>
            <ToolMenu
              title="Create annotation — cloud, callout, text, highlight, or dimension"
@@ -8674,8 +8676,8 @@ export default function TakeoffCanvas() {
              path), so the mark means a person looked. */}
          {railTile("approve", "approve", "Approval stamp — the estimator's ink. Click a committed takeoff to approve it, or empty plan to approve the sheet; click a seal to lift it. ⌘Z undoes. Human-only.", null,
            () => setTool((t) => (t === "approve" ? "select" : "approve")), { tint: tool === "approve" ? "var(--c-positive)" : undefined, armed: tool === "approve" })}
-         {railLabel("CAL")}
-         {railTile("calibrate", "calibrate", "Calibrate — click two points of a known dimension", null)}
+         {railLabel("校准")}
+         {railTile("calibrate", "calibrate", "校准 — 点击已知尺寸的两个端点", null)}
        </nav>
        )}
        {/* docked LEFT panel — one of Markups/Stamps/RFIs at a time. Reflows the
@@ -8708,7 +8710,7 @@ export default function TakeoffCanvas() {
                    </button>
                  </div>
                  <div style={{ padding: "8px 10px", color: "var(--ink-muted)" }}>
-                   Open <b>Create annotation</b> in the drawing toolbar to choose a cloud, highlight, callout, text note, or dimension, then click the plan to annotate it. <b>🖼 Image</b> marquees a region (two clicks) — or use <b>Upload image…</b> in Captures below.
+                   导入图纸 <b>Create annotation</b> in the drawing toolbar to choose a cloud, highlight, callout, text note, or dimension, then click the plan to annotate it. <b>🖼 Image</b> marquees a region (two clicks) — or use <b>Upload image…</b> in Captures below.
                  </div>
                  {markups.filter((m) => panelKeySet.has(m.sheet_id) && m.type !== "image").length === 0 && (
                    <div style={{ padding: "4px 12px 14px", color: "var(--ink-muted)" }}>
@@ -8742,7 +8744,7 @@ export default function TakeoffCanvas() {
                          additive: unset color falls back to the cobalt(linked)/amber default,
                          unset style to solid. The RFI ⬢/number badge stays cobalt regardless. */}
                      <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 7, flexWrap: "wrap" }}>
-                       <span style={{ fontSize: 10.5, color: "var(--ink-muted)", marginRight: 2 }}>Color</span>
+                       <span style={{ fontSize: 10.5, color: "var(--ink-muted)", marginRight: 2 }}>颜色</span>
                        <button title="Auto (linkage color)" onClick={() => updateMarkup(m.id, { color: "" })} style={{ width: 26, height: 15, borderRadius: 4, background: "var(--paper-bright)", border: !m.color ? "2px solid var(--ink)" : "1px solid var(--ink-faint)", cursor: "pointer", fontSize: 8.5, lineHeight: "11px", color: "var(--ink-muted)" }}>auto</button>
                        {PALETTE.map((c) => <button key={c} title={c} onClick={() => updateMarkup(m.id, { color: c })} style={{ width: 15, height: 15, borderRadius: 4, background: c, border: m.color === c ? "2px solid var(--ink)" : "1px solid var(--ink-faint)", cursor: "pointer" }} />)}
                        <select name="markup-line-style" value={m.line_style || "solid"} onChange={(e) => updateMarkup(m.id, { line_style: e.target.value })} title="Line style" style={{ marginLeft: 4, fontSize: 11, border: "1px solid var(--ink-faint)", background: "var(--paper-bright)", padding: "1px 3px" }}>
@@ -8779,7 +8781,7 @@ export default function TakeoffCanvas() {
                                  <span style={{ width: 9, height: 9, background: lc.color, border: "1px solid var(--ink-faint)" }} />
                                  {lc.finish_tag}
                                </span>
-                               <button onClick={() => { setActiveCond(lc.id); }} style={{ ...ctrl, color: "var(--cobalt)" }} title="Make this the active condition">Select</button>
+                               <button onClick={() => { setActiveCond(lc.id); }} style={{ ...ctrl, color: "var(--cobalt)" }} title="Make this the active condition">选择</button>
                                <button onClick={() => unlinkCondition(m)} style={{ ...ctrl, color: "var(--ink-muted)" }} title="Detach this annotation from its condition">Detach</button>
                              </>
                            ) : conditions.length > 0 && (
@@ -8801,7 +8803,7 @@ export default function TakeoffCanvas() {
                            {linked ? (
                              <>
                                <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 700, color: "var(--cobalt)" }}>⬢ {String(linked.number ?? "")}</span>
-                               <button onClick={() => { setLeftTab("rfi"); }} style={{ ...ctrl, color: "var(--cobalt)" }} title="Open the RFI register">Open</button>
+                               <button onClick={() => { setLeftTab("rfi"); }} style={{ ...ctrl, color: "var(--cobalt)" }} title="Open the RFI register">导入图纸</button>
                                <button onClick={() => unlinkRfi(m)} style={{ ...ctrl, color: "var(--ink-muted)" }} title="Unlink this markup from its RFI">Unlink</button>
                              </>
                            ) : (
@@ -8934,7 +8936,7 @@ export default function TakeoffCanvas() {
                                        <span style={{ width: 9, height: 9, background: lc.color, border: "1px solid var(--ink-faint)" }} />
                                        {lc.finish_tag}
                                      </span>
-                                     <button onClick={() => { setActiveCond(lc.id); }} style={{ ...ctrl, color: "var(--cobalt)" }} title="Make this the active condition">Select</button>
+                                     <button onClick={() => { setActiveCond(lc.id); }} style={{ ...ctrl, color: "var(--cobalt)" }} title="Make this the active condition">选择</button>
                                      <button onClick={() => unlinkCondition(m)} style={{ ...ctrl, color: "var(--ink-muted)" }} title="Detach this annotation from its condition">Detach</button>
                                    </>
                                  ) : conditions.length > 0 && (
@@ -8957,7 +8959,7 @@ export default function TakeoffCanvas() {
                                  {linked ? (
                                    <>
                                      <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 700, color: "var(--cobalt)" }}>⬢ {String(linked.number ?? "")}</span>
-                                     <button onClick={() => { setLeftTab("rfi"); }} style={{ ...ctrl, color: "var(--cobalt)" }} title="Open the RFI register">Open</button>
+                                     <button onClick={() => { setLeftTab("rfi"); }} style={{ ...ctrl, color: "var(--cobalt)" }} title="Open the RFI register">导入图纸</button>
                                      <button onClick={() => unlinkRfi(m)} style={{ ...ctrl, color: "var(--ink-muted)" }} title="Unlink this markup from its RFI">Unlink</button>
                                    </>
                                  ) : (
@@ -9899,7 +9901,7 @@ export default function TakeoffCanvas() {
           {status !== "ready" && (
             <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink-muted)", fontSize: 15 }}>
               {status === "loading" && "Loading sheets…"}
-              {status === "rendering" && "Rendering sheet…"}
+              {status === "rendering" && "正在渲染图纸…"}
               {status === "empty" && "No PDFs yet — click “Open PDF” or drag a plan onto the canvas."}
               {status === "error" && <span style={{ color: "var(--c-danger)" }}>Error: {err}</span>}
             </div>
@@ -9944,10 +9946,10 @@ export default function TakeoffCanvas() {
               <span><b>{ruleStage.candidates.length}</b> matching region{ruleStage.candidates.length === 1 ? "" : "s"} staged as dashed deducts — {ruleStage.rule.label}.</span>
               <button onClick={applyStagedRule}
                 style={{ padding: "4px 12px", background: "var(--paper-bright)", border: "1.5px solid var(--cobalt)", color: "var(--cobalt)", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
-                Apply {ruleStage.candidates.length}</button>
+                应用 {ruleStage.candidates.length}</button>
               <button onClick={() => setRuleStage(null)}
                 style={{ padding: "4px 12px", background: "var(--paper-bright)", border: "1px solid var(--ink-faint)", color: "var(--ink-muted)", fontSize: 12, cursor: "pointer" }}>
-                Cancel</button>
+                取消</button>
             </>)}
           </div>
         )}
@@ -9974,7 +9976,7 @@ export default function TakeoffCanvas() {
                   ? `Proposal “${g.proposal.label}”${g.proposal.rationale ? ` — ${g.proposal.rationale}` : ""}. ${n} shape${n === 1 ? "" : "s"} render${n === 1 ? "s" : ""} dashed pending your review. Accept makes the whole batch ink in one step (⌘Z undoes).`
                   : `${n} machine-proposed shape${n === 1 ? "" : "s"} render${n === 1 ? "s" : ""} dashed pending your review. Accept makes them ink (⌘Z undoes); to reject one, select it and press Delete.`}
                 style={{ padding: "6px 12px", border: "none", background: "transparent", color: "inherit", font: "inherit", cursor: "pointer" }}>
-                Accept {g.proposal ? <>“{label}” <span style={{ fontWeight: 500, color: "var(--ink-muted)" }}>· {n}</span></> : label}
+                接受 {g.proposal ? <>“{label}” <span style={{ fontWeight: 500, color: "var(--ink-muted)" }}>· {n}</span></> : label}
               </button>
               <button onClick={() => rejectProposalGroup(g)}
                 title={`Reject ${g.proposal ? `“${g.proposal.label}”` : "these shapes"} — removes ${n === 1 ? "the pending shape" : `all ${n} pending shapes`} (⌘Z restores).`}
@@ -10092,7 +10094,7 @@ export default function TakeoffCanvas() {
               );
             })()
           ) : (
-            <div style={{ fontSize: 12.5, opacity: 0.6 }}>{!unitsPerPx ? "Set scale first" : tool === "zone" ? "Trace a region (an apartment, a wing) — ⏎ closes it and lists every condition inside" : !activeCond ? "Pick a condition" : tool === "oneclick" ? "Click inside a room — it selects itself" : tool === "surface" ? "Trace the wall run" : "Click to trace an area"}</div>
+            <div style={{ fontSize: 12.5, opacity: 0.6 }}>{!unitsPerPx ? "请先设置比例尺" : tool === "zone" ? "Trace a region (an apartment, a wing) — ⏎ closes it and lists every condition inside" : !activeCond ? "请选择饰面分类" : tool === "oneclick" ? "Click inside a room — it selects itself" : tool === "surface" ? "沿墙体逐点测量" : "点击绘制面积，双击或回车完成"}</div>
           )}
           {selShape?.measure_role === "surface_area" && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }} title="Height for THIS wall only — full-height tile here, 4-ft wainscot there, same condition. ↺ returns to the condition height.">
@@ -10144,7 +10146,7 @@ export default function TakeoffCanvas() {
           {condTotal === 0 && lfTotal === 0 && countTotal === 0 && wallTotal === 0 && borderTotal === 0 && <div style={{ fontSize: 12.5, color: "var(--ink-muted)", marginTop: 2 }}>—</div>}
           {tally.length > 0 && (
             <>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4, opacity: 0.5, marginTop: 8 }}>Measurements</div>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4, opacity: 0.5, marginTop: 8 }}>测量记录</div>
               <div style={{ fontFamily: "var(--f-mono)", fontSize: 11.5, lineHeight: 1.5, marginTop: 2 }}>
                 {tally.map((r) => (
                   <div key={r.id} style={{ display: "flex", gap: 6, whiteSpace: "nowrap" }}>
@@ -10250,7 +10252,7 @@ export default function TakeoffCanvas() {
             Takeoffs panel). Honest empty state until the BYO-AI seam is
             configured; otherwise the goal box, the streaming run log, and the
             per-proposal accept/reject desk. */}
-          <WorkspacePanel dockSide={workspaceLayout ? workspaceArrangement.work : undefined} width={workspaceLayout ? workspaceArrangement.workWidth : undefined} dockHandle={workspaceDockHandle("work", "Work")} open={agentOpen} shapes={shapes} conditions={condById} selectedId={selectedId}
+          <WorkspacePanel dockSide={workspaceLayout ? workspaceArrangement.work : undefined} width={workspaceLayout ? workspaceArrangement.workWidth : undefined} dockHandle={workspaceDockHandle("work", "复核")} open={agentOpen} shapes={shapes} conditions={condById} selectedId={selectedId}
             sheetLabel={tabLabel} fmtArea={(sf) => fa(sf, 2)} fmtLength={(lf) => fl(lf, 2)}
             scales={scales} scaleUnconfirmed={scaleUnconfirmed} running={agentRunning}
             proposalCount={agentProposals.length} onLocate={locateWork}
@@ -10317,7 +10319,7 @@ export default function TakeoffCanvas() {
             transform — the stage is anchored top-left, so a re-fit would be a
             jarring jump. */}
         <TakeoffsPanel
-          dockSide={workspaceLayout ? workspaceArrangement.takeoffs : undefined} layoutLocked={workspaceLayout && workspaceArrangement.locked} dockHandle={workspaceDockHandle("takeoffs", "Takeoffs")}
+          dockSide={workspaceLayout ? workspaceArrangement.takeoffs : undefined} layoutLocked={workspaceLayout && workspaceArrangement.locked} dockHandle={workspaceDockHandle("takeoffs", "工程量")}
           open={takeoffsOpen}
           width={panelW}
           overlay={isNarrow}
