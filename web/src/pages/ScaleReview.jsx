@@ -85,6 +85,7 @@ export default function ScaleReview() {
   const [drafts, setDrafts] = useState({});
   const [active, setActive] = useState(null);
   const [filter, setFilter] = useState('all');
+  const [evidenceFilter, setEvidenceFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [ratio, setRatio] = useState('100');
   const [busy, setBusy] = useState('');
@@ -143,7 +144,26 @@ export default function ScaleReview() {
   const counts = new Map();
   for (const shape of document?.shapes || []) counts.set(shape.sheet_id, (counts.get(shape.sheet_id) || 0) + 1);
   const status = row => row.error || results[row.key]?.state === 'error' ? 'error' : drafts[row.key] ? 'draft' : saved.get(row.key)?.units_per_px > 0 && saved.get(row.key)?.scale_confirmed !== false ? 'confirmed' : 'pending';
-  const visible = rows.filter(row => row.file.toLowerCase().includes(query.toLowerCase()) && (filter === 'all' || status(row) === filter));
+  const evidenceCategory = row => {
+    const result = results[row.key];
+    if (row.error || result?.state === 'error') return 'error';
+    if (result?.state === 'running') return 'running';
+    if (result?.state === 'cancelled') return 'cancelled';
+    if (result?.state === 'none') return 'none';
+    if (result?.state !== 'found') return 'unscanned';
+    if (result.proposal?.multi) return 'conflict';
+    if (result.proposal?.auto === false) return 'calibrate';
+    return result.proposal?.evidenceCount ? 'dimensions' : 'note';
+  };
+  const evidenceOptions = [
+    ['all', '全部识别结果'], ['conflict', '证据冲突'], ['none', '未找到可靠比例尺'],
+    ['calibrate', '需两点校准'], ['dimensions', '多处尺寸证据'], ['note', '比例文字证据'],
+    ['unscanned', '尚未识别'], ['error', '识别／读取失败'], ['running', '正在识别'], ['cancelled', '已取消'],
+  ];
+  const visible = rows.filter(row => row.file.toLowerCase().includes(query.toLowerCase())
+    && (filter === 'all' || status(row) === filter)
+    && (evidenceFilter === 'all' || evidenceCategory(row) === evidenceFilter));
+  const hiddenSelected = selected.size - visible.filter(row => selected.has(row.key)).length;
   const chosen = rows.filter(row => selected.has(row.key) && !row.error);
   const activeRow = rows.find(r => r.key === active);
   const blocked = loading || !!busy || !document || conflict;
@@ -251,7 +271,7 @@ export default function ScaleReview() {
     <section className="sr-stats" aria-label="核对概览">{[['图纸页数', rows.length], ['已确认', rows.filter(r => status(r) === 'confirmed').length], ['待核对', rows.filter(r => status(r) === 'pending').length], ['待保存', Object.keys(drafts).length]].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</section>
     {error && <div className="sr-alert sr-error" role="alert">{error}</div>}{message && <div className="sr-alert" role="status">{message}</div>}
     {conflict && <div className="sr-alert sr-error" role="alert">项目已更新，保存已暂停。<button disabled={!!busy} onClick={() => { if (!dirty || window.confirm('重新载入会清除本页未保存的修改，是否继续？')) setReload(v => v + 1); }}>重新载入项目</button></div>}
-    <div className="sr-toolbar"><label>图纸筛选 <input value={query} onChange={e => setQuery(e.target.value)} placeholder="搜索文件名称" /></label><select aria-label="筛选核对状态" value={filter} onChange={e => setFilter(e.target.value)}><option value="all">全部状态</option><option value="pending">待核对</option><option value="confirmed">已确认</option><option value="draft">待保存</option><option value="error">读取失败</option></select><span>已选 {selected.size} 张</span><button disabled={blocked || !chosen.length} className="sr-primary" onClick={recognize}>一键识别选中图纸</button>{busy === 'scan' && <button onClick={() => { abortRef.current = true; setMessage('正在取消，当前图纸处理结束后停止。'); }}>取消识别</button>}</div>
+    <div className="sr-toolbar"><label>图纸筛选 <input value={query} onChange={e => setQuery(e.target.value)} placeholder="搜索文件名称" /></label><select aria-label="筛选核对状态" value={filter} onChange={e => setFilter(e.target.value)}><option value="all">全部状态</option><option value="pending">待核对</option><option value="confirmed">已确认</option><option value="draft">待保存</option><option value="error">读取失败</option></select><label>识别结果 <select aria-label="筛选识别建议与依据" value={evidenceFilter} onChange={e => setEvidenceFilter(e.target.value)}>{evidenceOptions.map(([value, label]) => <option key={value} value={value}>{label}（{value === "all" ? rows.length : rows.filter(row => evidenceCategory(row) === value).length}）</option>)}</select></label><span>显示 {visible.length} 张 · 已选 {selected.size} 张{hiddenSelected > 0 && <strong className="sr-warn">（筛选外 {hiddenSelected} 张）</strong>}</span><button disabled={blocked || !chosen.length} className="sr-primary" onClick={recognize}>一键识别选中图纸</button>{busy === 'scan' && <button onClick={() => { abortRef.current = true; setMessage('正在取消，当前图纸处理结束后停止。'); }}>取消识别</button>}</div>
     {busy && <div className="sr-progress" role="status">{busy === 'scan' ? `识别中 ${progress.done} / ${progress.total}，扫描图 OCR 可能需要较长时间` : busy === 'save' ? '正在备份与保存…' : '正在处理图纸…'}{busy === 'scan' && <progress value={progress.done} max={progress.total || 1}/>}</div>}
     <div className="sr-actions"><button disabled={blocked || !chosen.length} onClick={adopt}>采用选中建议</button><button disabled={blocked || !chosen.length} onClick={confirmExisting}>确认选中当前比例尺</button><label>统一设置 1 : <input type="number" min="1" value={ratio} onChange={e => setRatio(e.target.value)} aria-label="比例尺分母" /></label><button disabled={blocked || !chosen.length || !positive(ratio)} onClick={() => stageRatio(chosen)}>应用到选中图纸</button><button disabled={blocked || !dirty} className="sr-primary" onClick={prepareSave}>保存 {Object.keys(drafts).length} 张修改</button><button disabled={blocked || !dirty} onClick={() => { if (window.confirm('清除所有尚未保存的修改？')) setDrafts({}); }}>放弃修改</button></div>
     <div className="sr-workspace"><section className="sr-list" aria-label="图纸列表"><div className="sr-list-top"><label><input type="checkbox" aria-label="全选筛选结果" disabled={blocked} checked={visible.filter(r => !r.error).length > 0 && visible.filter(r => !r.error).every(r => selected.has(r.key))} onChange={e => setSelected(old => { const next = new Set(old); for (const row of visible.filter(r => !r.error)) { if (e.target.checked) next.add(row.key); else next.delete(row.key); } return next; })}/>全选筛选结果</label><button disabled={!!busy || !selected.size} onClick={() => setSelected(new Set())}>清空选择</button></div>
@@ -263,7 +283,7 @@ export default function ScaleReview() {
           <td><input type="checkbox" aria-label={`选择 ${row.file} 第${row.page}页`} checked={selected.has(row.key)} disabled={blocked || !!row.error} onChange={e => setSelected(old => { const next = new Set(old); if (e.target.checked) next.add(row.key); else next.delete(row.key); return next; })}/></td>
           <td><button className="sr-row-link" disabled={!!row.error || !!busy} onClick={() => setActive(row.key)}>{row.file}<small>第 {row.page} 页 · {counts.get(row.key) || 0} 项测量</small></button></td>
           <td>{current?.scale_source === 'ocr' || current?.scale_source === 'calibrated' ? `${number(current.units_per_px * 304.8)} mm/px` : scaleLabel(current?.units_per_px)}{draft && <small className="sr-draft">→ {draft.scale_source === 'calibrated' || draft.scale_source === 'ocr' ? `${number(draft.units_per_px * 304.8)} mm/px` : scaleLabel(draft.units_per_px)}</small>}</td>
-          <td>{result?.state === 'running' ? '正在识别…' : result?.state === 'error' ? '识别失败，可重试' : result?.proposal?.label || (result?.state === 'none' ? '未找到可靠结果' : result?.state === 'cancelled' ? '已取消，可重试' : '尚未识别')}<small>{row.error || result?.error || result?.evidence || ''}</small>{result?.proposal && <span className={`sr-tag ${result.proposal.multi || result.proposal.auto === false ? 'sr-warn' : ''}`}>{result.proposal.multi ? '证据冲突' : result.proposal.auto === false ? '需两点校准' : result.proposal.evidenceCount ? '多处尺寸证据' : '比例文字证据'}</span>}</td>
+          <td>{result?.state === 'running' ? '正在识别…' : result?.state === 'error' ? '识别失败，可重试' : result?.proposal?.label || (result?.state === 'none' ? '未找到可靠比例尺' : result?.state === 'cancelled' ? '已取消，可重试' : '尚未识别')}<small>{row.error || result?.error || result?.evidence || ''}</small>{result?.proposal && <span className={`sr-tag ${result.proposal.multi || result.proposal.auto === false ? 'sr-warn' : ''}`}>{result.proposal.multi ? '证据冲突' : result.proposal.auto === false ? '需两点校准' : result.proposal.evidenceCount ? '多处尺寸证据' : '比例文字证据'}</span>}</td>
           <td><span className={`sr-tag ${state === 'pending' || state === 'error' ? 'sr-warn' : ''}`}>{({ confirmed: '已确认', pending: '待核对', draft: '待保存', error: '读取失败' })[state]}</span>{draft && <button className="sr-row-link" disabled={!!busy} onClick={() => setDrafts(old => { const next = { ...old }; delete next[row.key]; return next; })}>撤销修改</button>}</td>
         </tr>;
       })}</tbody></table>{!loading && rows.length > 0 && !visible.length && <p>没有符合筛选条件的图纸。</p>}

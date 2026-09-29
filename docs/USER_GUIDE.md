@@ -1180,3 +1180,8 @@ before “确认并保存”. This human action confirms scales and reprices mea
 fractional counts and machine-original geometry are preserved. A pre-change
 snapshot is available from canvas revisions. Drafts are session-only. Concurrent
 project or source-file changes block saving and require reloading.
+
+Scale review also supports the “识别结果” filter, including “证据冲突” and
+“未找到可靠比例尺”. It combines with file-name and review-status filters. Category
+counts describe the full plan set; the displayed count reflects all active filters.
+Selections persist across filters, with hidden selections explicitly counted.
