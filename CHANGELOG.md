@@ -1,5 +1,10 @@
 # Changelog
 
+## Quantifin 2026-09-29 — 自动读取毫米标注比例尺
+
+- 对已有文字和矢量尺寸线的 PDF，读取印刷比例，或由至少两处一致的毫米尺寸推算比例尺；扫描件在浏览器内用 OCR 与尺寸线交叉核验。
+- 自动结果标为待人工确认，无法可靠推断时保留未校准状态；人工校准与尺寸核对输入使用 mm。DWG 目前提示先导出 PDF。
+- OCR 依赖和随构建交付的许可声明已列入第三方声明与维护日志。
 ## Quantifin 2026-09-28 — 算量编辑器改造
 
 <!-- Modified by Quantifin: downstream UI and maintenance record. -->

@@ -5,6 +5,9 @@ which retain their own licenses:
 
 | Project | License | Use |
 |---|---|---|
+| [Tesseract.js](https://github.com/naptha/tesseract.js) (`tesseract.js` 7.0.0) | Apache-2.0 | Local OCR for scanned plan scale labels and dimensions |
+| [Tesseract.js Core](https://github.com/naptha/tesseract.js-core) (`tesseract.js-core`, transitive) | Apache-2.0 | WebAssembly OCR runtime, staged into the static build |
+| [English trained data](https://github.com/naptha/tessdata) (`@tesseract.js-data/eng` 1.0.0) | MIT package; Apache-2.0 data | Bundled English OCR model for numeric scale labels |
 | [pdf.js](https://github.com/mozilla/pdf.js) (`pdfjs-dist`) | Apache-2.0 | PDF parsing & rendering (incl. the bundled `pdf.worker`) |
 | [React](https://github.com/facebook/react) / `react-dom` | MIT | UI runtime |
 | [React Router](https://github.com/remix-run/react-router) | MIT | Routing |
