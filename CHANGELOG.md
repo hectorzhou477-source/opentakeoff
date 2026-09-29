@@ -1,5 +1,13 @@
 # Changelog
 
+## Quantifin 2026-09-28 — 算量编辑器改造
+
+<!-- Modified by Quantifin: downstream UI and maintenance record. -->
+- 新增中文工作台、图纸管理与搜索、复核中心、公制清单和使用说明。
+- 将原算量画布整合为 Quantifin 工作区；中文化图纸空状态与管理确认、比例尺和绘图菜单、报表设置、项目信息及导入导出反馈。新用户默认公制，保留既有偏好与原存储格式。
+- 报表和标注图纸使用 Quantifin 署名适配层，保留 OpenTakeoff 来源署名；修复 Windows 上文档链接检查和性能基准的路径解析。
+- 组织协作仍为规划功能；部分高级提示和机器可读导出字段保留英文。验证记录见 [维护日志](docs/MAINTENANCE_LOG.md)。
+
 ## 2026-09-15 — annotation toolbar
 
 Added direct arrow, highlighter, callout, cloud-note, favorites, and annotation Sweep tools. Sweep requires confirmation in a numbered checklist, supports individual exclusions, and applies one undoable batch. Added page-relative vector PDF export and rotated-page highlight checks.

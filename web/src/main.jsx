@@ -1,4 +1,6 @@
+// Modified by Quantifin, 2026-09-28: Chinese workbench entry; preserve upstream canvas routes.
 import React, { useEffect, useState } from "react";
+import QuantifinHome from "./pages/QuantifinHome.jsx";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from "react-router";
 import "./styles/tokens.css";
@@ -493,6 +495,8 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <GoogleAuthProvider>
       <BrowserRouter>
         <Routes>
+          <Route path="/" element={<QuantifinEntry />} />
+          <Route path="/takeoff" element={<App />} />
           <Route path="/projects" element={<ProjectHomeGate />} />
           <Route path="*" element={<App />} />
         </Routes>
@@ -500,3 +504,8 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     </GoogleAuthProvider>
   </React.StrictMode>
 );
+
+function QuantifinEntry() {
+  useLocation();
+  return projectIdFromUrl() ? <App /> : <QuantifinHome />;
+}

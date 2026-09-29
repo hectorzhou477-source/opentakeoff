@@ -1,5 +1,10 @@
 <div align="center">
 
+<!-- Modified by Quantifin, 2026-09-28: document downstream Chinese entry. -->
+# Quantifin 本地前端
+
+本分支新增中文工作台，访问 `/`；Quantifin 算量编辑器位于 `/takeoff`。提供本地图纸导入和搜索、中文测量工具、复核状态汇总、公制工程量清单及 CSV 导出。组织协作页仅为功能规划，部分高级提示仍为英文。详情见 [Quantifin 说明](docs/QUANTIFIN.md)和[维护日志](docs/MAINTENANCE_LOG.md)。
+
 # OpenTakeoff
 
 **The measurement engine for building plans—built so an AI agent can drive it, and so an estimator wants to.**

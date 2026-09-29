@@ -1,3 +1,4 @@
+<!-- Modified by Quantifin, 2026-09-28: document the downstream Chinese workbench. -->
 # OpenTakeoff — The User Manual
 
 ### Annotation toolbar and reviewed Sweep
@@ -1160,3 +1161,6 @@ explains the browser controls and the current MCP transport limit explicitly.
 ## Privacy and terms
 
 Open the guide (`?`) for links to the [Privacy Policy](https://opentakeoff.kentucky-ai.com/privacy/) and [Terms of Service](https://opentakeoff.kentucky-ai.com/terms/). These explain local storage, optional cloud and AI connections, contributions, and responsibility for reviewed estimates.
+<!-- Modified by Quantifin, 2026-09-28: downstream entry guide. -->
+
+Quantifin 用户：中文工作台位于 `/`，原画布位于 `/takeoff`。工作台操作范围与限制见 [Quantifin 中文指南](QUANTIFIN.md)。以下为保留的上游画布手册。
