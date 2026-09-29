@@ -1,12 +1,15 @@
+// Quantifin modification, 2026-09-29: stage licensed, same-origin OCR assets.
 import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { prepareOcrAssets } from "./scripts/prepare-ocr-assets.mjs";
 
 // The one source of truth for the app version — package.json — inlined as
 // __APP_VERSION__ so contributions can carry generator_version without a
 // runtime fetch. Guarded with `typeof` at the use site so the Node test
 // runner (no Vite, no define) sees plain undefined instead of a crash.
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
+prepareOcrAssets(); // same-origin OCR assets for scans; never shipped in the initial JS bundle
 
 // OpenTakeoff is a client-only static app: the takeoff canvas runs entirely in
 // the browser (pdf.js + canvas + the geometry libs), persists to IndexedDB /

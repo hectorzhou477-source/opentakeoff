@@ -1,3 +1,4 @@
+// Quantifin modification, 2026-09-29: millimetre dimension evidence and safer scale detection.
 // Shared sheet/plan-text helpers for the Takeoff Canvas and the Sheet Gallery:
 // sheet-key codec, standard scales, title-block sheet numbers, drawn-scale notes.
 import * as pdfjsLib from "pdfjs-dist";
@@ -8,6 +9,7 @@ export { parseSheetKey, compareSheetKeys } from "./sheetKey"; // moved to a pdfj
 export type { ParsedSheetKey } from "./sheetKey";
 
 import { RENDER_SCALE } from "./takeoffConstants.ts";
+import { inferMmScaleFromDimensions } from "./mmScale";
 export { RENDER_SCALE }; // owned by takeoffConstants; re-exported for existing importers
 
 // Pure fallback branch of the canvas `sheetBaseLabel` closure (TakeoffCanvas.jsx
@@ -59,6 +61,10 @@ export interface DetectedScale {
   upp: number;
   label: string;
   multi: boolean;
+  method?: "note" | "dimension" | "ocr";
+  evidenceCount?: number;
+  auto?: boolean;
+  reason?: string;
 }
 
 // Standard architectural/engineering scales → units_per_px (real feet per image
@@ -224,9 +230,25 @@ export function detectScale(textContent: TextContentLike, viewport: Viewport): D
   }
   const tbHits = _scaleHits(tb);
   const allHits = _scaleHits(all);
-  if (tbHits.length) return { upp: tbHits[0].upp, label: tbHits[0].label, multi: allHits.length > 1 };
-  if (allHits.length === 1) return { upp: allHits[0].upp, label: allHits[0].label, multi: false };
+  if (tbHits.length) return { upp: tbHits[0].upp, label: tbHits[0].label, multi: allHits.length > 1, method: "note" };
+  if (allHits.length === 1) return { upp: allHits[0].upp, label: allHits[0].label, multi: false, method: "note" };
+  if (allHits.length > 1) return { upp: allHits[0].upp, label: allHits[0].label, multi: true, method: "note" };
   return null;
+}
+
+// Quantifin: use two or more agreeing millimetre dimension lines when a page
+// has no unambiguous printed ratio. The returned value remains feet per image
+// pixel, matching the existing takeoff engine and persisted scale field.
+export function detectDimensionScale(textContent: TextContentLike, viewport: Viewport, segments: ArrayLike<number>): DetectedScale | null {
+  const viewportScale = Math.hypot(viewport.transform[0], viewport.transform[1]) || 1;
+  const texts = (textContent.items || []).map((item) => {
+    const t = pdfjsLib.Util.transform(viewport.transform, item.transform);
+    const height = Math.hypot(t[2], t[3]) || (item.height || 0) * viewportScale;
+    const width = item.width != null ? item.width * viewportScale : (item.str || "").length * height * 0.55;
+    return { text: item.str || "", x: t[4], y: t[5] - height, width, height, vertical: Math.abs(t[1]) > Math.abs(t[0]) };
+  });
+  const result = inferMmScaleFromDimensions(texts, segments, 72 * RENDER_SCALE / 25.4);
+  return result ? { ...result, method: "dimension" } : null;
 }
 
 // ── positioned text for ink classification (One-Click) ──────────────────────

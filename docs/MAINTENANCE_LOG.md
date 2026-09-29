@@ -14,3 +14,11 @@
 - 已知范围：个别高级工具及原有导出文件的机器可读字段仍使用英文；PDF 标注图纸封面仍使用 ASCII 标题，因为当前 PDF 字体仅支持 WinAnsi。组织协作、招标文件解析和自动置信度评估尚未实现，不能按已交付功能宣传。
 
 提交和远端发布记录以仓库 Git 历史及项目维护台账为准。后续升级上游时，应记录新旧 SHA，重新核对 `LICENSE`、`NOTICE`、第三方依赖及自有改动。
+
+## 2026-09-29：毫米标注自动比例尺
+
+- 目的：减少图纸导入后的手工比例尺设置；自动推断仍保留人工复核关口。
+- 代码：`web/src/lib/mmScale.ts`、`rasterScale.ts`、`ocrScale.js`、`sheets.ts`、`ingest.js`、`web/src/pages/TakeoffCanvas.jsx`、`QuantifinHome.jsx`、`web/src/components/PlanNavigator.jsx`、`web/scripts/prepare-ocr-assets.mjs` 和 `web/vite.config.js`。
+- 行为：两处一致的毫米尺寸标注才由尺寸线自动计算；冲突或仅 OCR 比例字样不自动应用。自动值标为未确认，人工以 mm 核对／校准。DWG 当前明确提示先转 PDF。存储沿用原 feet/px 与 scale_confirmed 语义，新增 scale_source 的 dimension/ocr 值以追溯来源。
+- 依赖：新增 tesseract.js 7.0.0（Apache-2.0）及 @tesseract.js-data/eng 1.0.0（MIT 包、Apache-2.0 数据）；传递依赖 tesseract.js-core 7.0.0（Apache-2.0）。OCR 运行文件在构建时复制到 web/dist/ocr，随附 Tesseract 许可文件与 NOTICE；完整归属见仓库 THIRD-PARTY-NOTICES.md。
+- 验证：Web 全量测试 1871 通过、3 跳过；类型、ESLint、性能基准、生产构建通过。相关 16 项测试及真实 PDF 端到端用例通过；MCP 工具数、Wiki、协议 61 项和文档链接检查通过。隔离无头浏览器验证中文首页与算量工作区渲染。
