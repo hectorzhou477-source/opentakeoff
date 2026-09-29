@@ -1,4 +1,4 @@
-// Modified by Quantifin, 2026-09-28: localize user-facing editor labels; preserve data keys.
+// Modified by Quantifin, 2026-09-29: Chinese editor, batch scale entry and ordered navigation saves; preserve data keys.
 import { useAnnotationWorkbench } from '../components/AnnotationWorkbench.jsx';
 import { nativeTextRuns, markupPatch, applyMarkupPatch } from '../lib/annotationTools.js';
 import ReferencePins, { PinButton } from "../components/ReferencePins.jsx";
@@ -42,6 +42,7 @@ import { buildProjectArchive, parseProjectArchive, isProjectArchive, downloadArc
 import { buildProfile, parseProfile, applyProfile, resetProfileDefaults, isProfileFile } from "../lib/profile.js";
 import ToolMenu from "../components/ToolMenu.jsx";
 import PlanNavigator from "../components/PlanNavigator.jsx";
+import { saveAnnotationsQueued } from "../lib/annotationWrites.js";
 import ReportPanel from "../components/ReportPanel.jsx";
 import RevisionsPanel from "../components/RevisionsPanel.jsx";
 import UserGuide from "../components/UserGuide.jsx";
@@ -2639,7 +2640,7 @@ export default function TakeoffCanvas() {
       // pre-adopt payload) → don't push stale over the winner; go idle so the canvas
       // can drain and re-hydrate. Closes the last pre-scheduled-save loss window.
       if (remotePendingRender.current) { setSaveState("idle"); return; }
-      store.saveAnnotations(payload).then(() => setSaveState("saved")).catch((e) => {
+      saveAnnotationsQueued(store, payload).then(() => setSaveState("saved")).catch((e) => {
         // surface the failure rather than dropping to a silent "idle" — with inline
         // image markups a QuotaExceededError is a realistic failure mode, and a
         // silent one loses the WHOLE payload (shapes, quantities, everything) with
@@ -2671,7 +2672,7 @@ export default function TakeoffCanvas() {
     return () => {
       window.removeEventListener("beforeunload", onBeforeUnload);
       if (hydrated.current && saveStateRef.current === "saving" && saveDataRef.current) {
-        mountStore.saveAnnotations(saveDataRef.current).catch(() => {});   // best-effort flush
+        saveAnnotationsQueued(mountStore, saveDataRef.current).catch(() => {});   // best-effort flush
       }
     };
   }, []);
@@ -8049,7 +8050,7 @@ export default function TakeoffCanvas() {
     : scaleMismatch
       ? `当前设置为 ${stdValue}，但图纸 ${labelFor(focusPanel)} 标注 ${scaleDet.label}。请先核对。`
       : `设置 ${labelFor(focusPanel)} 的比例尺；每张图纸独立保存${groupKeys.length > 1 ? "，当前作用于最后点击的图纸" : ""}。`;
-  const scaleItems = [];
+  const scaleItems = [{ id: "batch-scale-review", icon: "sheets", label: "批量比例尺核对…", onSelect: () => navigate("/scale-review" + window.location.search) }, "divider"];
   if (scaleNeedsConfirm) {
     scaleItems.push({
       id: "confirm-scale", icon: "check", tint: "var(--c-warning)",
@@ -8267,7 +8268,7 @@ export default function TakeoffCanvas() {
         history={<><button type="button" onClick={() => poly.length ? dropLastPoint() : undoShapeCommand()} title="撤销（Ctrl+Z）" aria-label="撤销"><Icon name="undo" size={16} /></button><button type="button" onClick={redoShapeCommand} title="重做（Ctrl+Shift+Z）" aria-label="重做"><span style={{ display: "flex", transform: "scaleX(-1)" }}><Icon name="undo" size={16} /></span></button></>}
          aids={<><button type="button" aria-pressed={tool === "zone"} onClick={() => setTool((t) => (t === "zone" ? "select" : "zone"))} title="绘制临时区域，查看其中各饰面及材料的工程量；退出工具后轮廓清除，不保存"><Icon name="zone" size={15} />区域核量</button><button type="button" aria-pressed={snapOn} onClick={() => setSnapOn((v) => !v)} title="捕捉图纸线条和端点（测试功能）"><Icon name="snap" size={15} />端点捕捉</button><button type="button" aria-pressed={angleOn} onClick={() => setAngleOn((v) => !v)} title="45°／90° 角度辅助线"><Icon name="angle" size={15} />45°</button>{draftMenu}<span className="calm-separator" />{annotations.control}</>}
         action={finishOk && <button type="button" onClick={finishShape}>完成测量 ({poly.length})</button>}
-         scaleMenu={<><button type="button" onClick={() => setUnits((u) => u === "metric" ? "imperial" : "metric")} title="切换显示单位">{units === "metric" ? "m" : "ft"}</button><ToolMenu title={scaleTitle} onOpenChange={onScaleMenuDepth} face={<span>{scaleFace}</span>} faceStyle={{ fontFamily: "var(--f-mono)", fontSize: 11.5, ...scaleFaceStyle }} menuStyle={{ minWidth: 250 }} items={scaleItems} /></>}
+         scaleMenu={<><button type="button" onClick={() => navigate("/scale-review" + window.location.search)}>批量比例尺核对</button><button type="button" onClick={() => setUnits((u) => u === "metric" ? "imperial" : "metric")} title="切换显示单位">{units === "metric" ? "m" : "ft"}</button><ToolMenu title={scaleTitle} onOpenChange={onScaleMenuDepth} face={<span>{scaleFace}</span>} faceStyle={{ fontFamily: "var(--f-mono)", fontSize: 11.5, ...scaleFaceStyle }} menuStyle={{ minWidth: 250 }} items={scaleItems} /></>}
       />}
       {workspaceLayout && !workspaceArrangement.readout && selShape?.measure_role === "surface_area" && <div className="calm-property-editor"><label>选中墙面高度 <input aria-label="选中墙面高度" type="number" min="0" step={heightStep(units)} value={shapeHDraft ?? dimInputStr(selShape.height_ft, units, "height")} onChange={(e) => { setShapeHDraft(e.target.value); setShapeHeight(e.target.value); }} onBlur={() => { if (shapeHDraft != null) setShapeHeight(shapeHDraft); setShapeHDraft(null); }} /></label><span>{heightUnit(units)} → {fa(selShape.computed?.area_sf || 0)}</span><button type="button" onClick={clearShapeHeight}>使用饰面默认高度</button></div>}
       {!focusMode && workspaceLayout && workspaceDetailsOpen && aCond && <div className="calm-property-editor"><strong>{aCond.finish_tag}</strong><ConditionAppearanceEditor cond={aCond} onUpdateCond={updateCond} onSetCondParam={setCondParam} onAssignAttr={assignAttr} conditionColumns={conditionColumns} layout="row" units={units} /><button type="button" onClick={() => setWorkspaceDetailsOpen(false)}>关闭属性</button></div>}

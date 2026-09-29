@@ -1,4 +1,4 @@
-// Modified by Quantifin, 2026-09-28: Chinese workbench entry; preserve upstream canvas routes.
+// Modified by Quantifin, 2026-09-29: Chinese workbench and scale review; preserve project storage gates.
 import React, { useEffect, useState } from "react";
 import QuantifinHome from "./pages/QuantifinHome.jsx";
 import ReactDOM from "react-dom/client";
@@ -7,6 +7,7 @@ import "./styles/tokens.css";
 import "./styles/app.css";
 import "./styles/print.css";   // OT-only print block — kept out of app.css so tokens/app stay byte-synced with Spline
 import TakeoffCanvas from "./pages/TakeoffCanvas.jsx";
+import ScaleReview from "./pages/ScaleReview.jsx";
 import ProjectHome from "./components/ProjectHome.jsx";
 import { GoogleAuthProvider, useGoogleAuth } from "./lib/google/AuthContext.jsx";
 import { projectIdFromUrl, setActiveStore, metaGet, metaDelete } from "./lib/store.js";
@@ -156,7 +157,7 @@ function ProjectGate({ projectId }) {
   if (error) return <Centered title="Couldn't open this project" body={error} />;
   if (!storeReady) return <Centered title="Opening project…" />;
   // key on projectId so switching projects (or sign-in) remounts a fresh canvas
-  return <TakeoffCanvas key={projectId} />;
+  return <WorkspaceView key={projectId} />;
 }
 
 // `/projects` on a build configured with a Projects root: sign in, then browse
@@ -262,8 +263,8 @@ function FolderGate() {
   }, []);
 
   if (status === "checking" || status === "building") return null; // ~ms IDB read — no flash
-  if (status === "plain") return <TakeoffCanvas />;
-  if (status === "ready") return <TakeoffCanvas key={`folder:${link.scope}`} />;
+  if (status === "plain") return <WorkspaceView />;
+  if (status === "ready") return <WorkspaceView key={`folder:${link.scope}`} />;
 
   const forget = async () => { await forgetFolder(); setStatus("plain"); };
   if (status === "prompt") {
@@ -394,8 +395,8 @@ function M365Gate({ cfg }) {
   };
 
   if (status === "checking" || status === "building") return null;
-  if (status === "ready") return <TakeoffCanvas key={`m365:${cfg.driveId}:${cfg.folderId}`} />;
-  if (status === "local") return <TakeoffCanvas />;
+  if (status === "ready") return <WorkspaceView key={`m365:${cfg.driveId}:${cfg.folderId}`} />;
+  if (status === "local") return <WorkspaceView />;
 
   const linkBtn = { border: "none", background: "transparent", color: "var(--ink-muted)", fontSize: 12.5, cursor: "pointer", textDecoration: "underline" };
   if (status === "signin") {
@@ -472,6 +473,11 @@ function WorkspaceGate() {
   return pick === "m365" ? <M365Gate cfg={cfg} /> : <FolderGate />;
 }
 
+function WorkspaceView() {
+  const location = useLocation();
+  return location.pathname === "/scale-review" ? <ScaleReview /> : <TakeoffCanvas />;
+}
+
 function App() {
   // Subscribe to navigation: react-router bails out of re-rendering the same
   // element on navigate(), so App must watch the location itself. The store.js
@@ -497,6 +503,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Routes>
           <Route path="/" element={<QuantifinEntry />} />
           <Route path="/takeoff" element={<App />} />
+          <Route path="/scale-review" element={<App />} />
           <Route path="/projects" element={<ProjectHomeGate />} />
           <Route path="*" element={<App />} />
         </Routes>

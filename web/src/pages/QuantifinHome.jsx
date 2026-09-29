@@ -6,7 +6,7 @@ import { ingestFiles } from "../lib/ingest.js";
 import { conditionTotals } from "../lib/totals.js";
 import "../styles/quantifin.css";
 
-const nav = [ ["home", "工作概览", "grid"], ["drawings", "图纸管理", "layers"], ["takeoff", "算量工作区", "ruler"], ["review", "复核中心", "check"], ["materials", "工程量清单", "list"] ];
+const nav = [ ["home", "工作概览", "grid"], ["drawings", "图纸管理", "layers"], ["scale", "比例尺核对", "ruler"], ["takeoff", "算量工作区", "ruler"], ["review", "复核中心", "check"], ["materials", "工程量清单", "list"] ];
 const titles = { home: "工作概览", drawings: "图纸管理", review: "复核中心", materials: "工程量清单", guide: "使用指南", team: "组织与协作" };
 const fmt = (n) => Number(n || 0).toLocaleString("zh-CN", { maximumFractionDigits: 2 });
 function Icon({ name = "grid", size = 20 }) {
@@ -79,7 +79,7 @@ export default function QuantifinHome() {
     <input ref={input} type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.zip" hidden onChange={e => importFiles(Array.from(e.target.files || []))}/>
     <aside className="q-sidebar"><Link to="/" className="q-brand" onClick={() => go("home")}><span className="q-logo">Q<span/></span><div>Quantifin<small>装饰工程 · 精准计量</small></div></Link>
       <button className="q-space" onClick={() => go("team")}><span className="q-avatar">个</span><span><b>我的工作空间</b><small>个人 / 工作室 · 本地版</small></span><span className="q-chevron">⌄</span></button>
-      <div className="q-nav-label">工作空间</div><nav aria-label="主导航">{nav.map(([id, label, icon]) => id === "takeoff" ? <Link key={id} to="/takeoff"><Icon name={icon}/>{label}<span className="q-nav-external">↗</span></Link> : <button key={id} className={section === id ? "active" : ""} aria-current={section === id ? "page" : undefined} onClick={() => go(id)}><Icon name={icon}/>{label}{id === "review" && pending.length > 0 && <span className="q-count">{pending.length}</span>}</button>)}</nav>
+      <div className="q-nav-label">工作空间</div><nav aria-label="主导航">{nav.map(([id, label, icon]) => (id === "takeoff" || id === "scale") ? <Link key={id} to={id === "scale" ? "/scale-review" : "/takeoff"}><Icon name={icon}/>{label}<span className="q-nav-external">↗</span></Link> : <button key={id} className={section === id ? "active" : ""} aria-current={section === id ? "page" : undefined} onClick={() => go(id)}><Icon name={icon}/>{label}{id === "review" && pending.length > 0 && <span className="q-count">{pending.length}</span>}</button>)}</nav>
       <div className="q-nav-label q-nav-second">管理与支持</div><nav><button className={section === "team" ? "active" : ""} onClick={() => go("team")}><Icon name="team"/>组织与协作<span className="q-soon">规划中</span></button><button className={section === "guide" ? "active" : ""} onClick={() => go("guide")}><Icon name="book"/>使用指南</button></nav>
       <div className="q-sidebar-bottom"><div className="q-local"><span/>本地工作模式</div><p>图纸保存在当前浏览器<br/>请定期导出项目备份</p><div className="q-profile"><span className="q-avatar">Q</span><div><b>本地用户</b><small>造价工程师 / 工作室</small></div></div></div>
     </aside>

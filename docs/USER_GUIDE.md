@@ -1168,3 +1168,15 @@ Quantifin 用户：中文工作台位于 `/`，原画布位于 `/takeoff`。工�
 ## Quantifin: 毫米标注自动比例尺
 
 PDF 的比例标注或两处一致的毫米尺寸线可自动填写比例尺。扫描件会在浏览器内 OCR，并用尺寸线核验；只有 OCR 比例文字时仍需手动校准。黄色待核对状态须用 K 对照已知尺寸，公制输入单位为 mm，然后在比例尺菜单确认。DWG 先导出 PDF。自动识别不等于工程量已人工复核。
+
+## Quantifin batch scale review
+
+Open `/scale-review` from the workbench, plan navigator, or canvas scale controls.
+Select drawing pages, choose “一键识别选中图纸”, inspect the evidence, then use
+“采用选中建议” or enter manual scales. Scanned pages require two-point calibration
+when millimetre dimensions cannot establish a scale; an OCR ratio alone is not
+eligible for batch acceptance. Click “保存 N 张修改” and review the quantity changes
+before “确认并保存”. This human action confirms scales and reprices measurements;
+fractional counts and machine-original geometry are preserved. A pre-change
+snapshot is available from canvas revisions. Drafts are session-only. Concurrent
+project or source-file changes block saving and require reloading.
