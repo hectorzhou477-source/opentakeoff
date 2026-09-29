@@ -13,12 +13,15 @@ export interface MmScaleEvidence {
   label: string;
   multi: boolean;
   evidenceCount: number;
+  evidence: { line?: number[]; text: MmText }[];
 }
 
 interface Witness {
   ratio: number;
   upp: number;
   line: number;
+  segment: number[];
+  text: MmText;
 }
 
 const METRIC_RATIOS = [10, 20, 25, 30, 40, 50, 75, 100, 125, 150, 200, 250, 300, 400, 500, 1000];
@@ -107,7 +110,7 @@ export function inferMmScaleFromDimensions(
       const ratio = mm * pxPerPaperMm / run;
       const named = nearestRatio(ratio);
       if (validatePaperRatio && Math.abs(ratio - named) / named > 0.06) continue;
-      if (!best || distance < best.distance) best = { ratio, upp: mm / MM_PER_FOOT / run, line: line.index, distance };
+      if (!best || distance < best.distance) best = { ratio, upp: mm / MM_PER_FOOT / run, line: line.index, segment: [line.x1, line.y1, line.x2, line.y2], text, distance };
     }
     if (best && !witnesses.some((w) => w.line === best.line)) witnesses.push(best);
   }
@@ -122,5 +125,6 @@ export function inferMmScaleFromDimensions(
     label: validatePaperRatio ? `毫米尺寸推算约 1:${nearestRatio(center)}（${agreeing.length}处一致）` : `按毫米尺寸自动校准（${agreeing.length}处一致）`,
     multi: agreeing.length !== witnesses.length,
     evidenceCount: agreeing.length,
+    evidence: agreeing.map(w => ({ line: w.segment, text: w.text })),
   };
 }

@@ -8,6 +8,8 @@
 
 自动比例尺：PDF 的印刷比例或至少两处一致的毫米尺寸可触发自动填写；扫描件在本地 OCR 后交叉核对。结果仍需人工用 K 核对已知尺寸。单个 OCR 比例标注不能证明扫描像素密度，因此不会自动应用。DWG 当前须先导出 PDF。详见 [中文使用说明](docs/QUANTIFIN.md)。
 
+批量比例尺核对：访问 `/scale-review`，多选图纸后一键识别，在完整页面集中核对、修改和确认。支持多页 PDF 及已导入图片；保存前预览工程量变化并创建快照。
+
 # OpenTakeoff
 
 **The measurement engine for building plans—built so an AI agent can drive it, and so an estimator wants to.**
