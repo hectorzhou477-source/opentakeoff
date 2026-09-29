@@ -1,3 +1,4 @@
+// Quantifin modification, 2026-09-29: explain DWG-to-PDF conversion at import.
 // File ingest — turn anything a contractor drops (a plan PDF, a scan or
 // screenshot image, or a .zip plan set straight off a bid platform) into the
 // PDF "sheets" the canvas already knows how to render.
@@ -15,6 +16,7 @@
 const PDF_EXT = /\.pdf$/i;
 const IMAGE_EXT = /\.(png|jpe?g|webp|gif|bmp)$/i;
 const ZIP_EXT = /\.zip$/i;
+const DWG_EXT = /\.dwg$/i; // Quantifin: explicit conversion guidance until native DWG support is licensed.
 
 // Guardrails against hostile archives (zip bombs and self-nesting "zip quines").
 // Everything here runs in the user's browser tab, so an unbounded archive is a
@@ -70,7 +72,7 @@ async function unzipBytes(bytes, onSkip, budget) {
       filter: (f) => {
         if (isJunk(f.name)) return false;
         const bn = baseName(f.name);
-        if (!(isPdf(bn) || isImage(bn) || isZip(bn))) { onSkip?.(bn, "unsupported type"); return false; }
+        if (!(isPdf(bn) || isImage(bn) || isZip(bn))) { onSkip?.(bn, DWG_EXT.test(bn) ? "DWG 请先导出为 PDF" : "unsupported type"); return false; }
         if (budget.entries <= 0) { onSkip?.(bn, "too many files"); return false; }
         const size = f.originalSize || 0;
         if (size > budget.bytes) { onSkip?.(bn, "archive too large"); return false; }
@@ -197,7 +199,7 @@ export async function ingestFiles(
         }
         return;
       }
-      skipped.push({ name: baseName(name), reason: "unsupported type" });
+      skipped.push({ name: baseName(name), reason: DWG_EXT.test(name) ? "DWG 请先导出为 PDF" : "unsupported type" });
     } catch (e) {
       skipped.push({ name: baseName(name), reason: (e && e.message) || "couldn't read" });
     }

@@ -52,3 +52,6 @@ web/public/models/
 
 # Coverage output (npm run test:coverage)
 **/coverage/
+
+# Generated same-origin OCR worker/core/language files
+web/public/ocr/

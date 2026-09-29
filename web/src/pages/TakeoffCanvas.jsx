@@ -48,7 +48,7 @@ import UserGuide from "../components/UserGuide.jsx";
 import TakeoffsPanel, { clampPanelW, CONDITION_DND_MIME, ConditionAppearanceEditor } from "../components/TakeoffsPanel.jsx";
 import { HATCHES, PALETTE, NO_FILL, HatchPattern, HatchSwatch } from "../components/hatches.jsx";
 import { Icon } from "../brand/icons.jsx";
-import { RENDER_SCALE, MAX_GROUP, STANDARD_SCALES, parseSheetKey, compareSheetKeys, extractSheetNumber, detectScale, extractRegionText, extractTextMarks, extractDimTexts } from "../lib/sheets";
+import { RENDER_SCALE, MAX_GROUP, STANDARD_SCALES, parseSheetKey, compareSheetKeys, extractSheetNumber, detectScale, detectDimensionScale, extractRegionText, extractTextMarks, extractDimTexts } from "../lib/sheets";
 import { joinAbuttingSpans } from "../lib/textjoin";
 import { normalizeLoadedGroups } from "../lib/sheetGroups";
 import { isStitchKey, mintStitchId, sanitizeStitches, autoButt, stitchExtent, alignMembers, seamClips, mergePoints, mergeSegs, stitchAlive, stitchLayoutSig } from "../lib/stitches";
@@ -192,7 +192,7 @@ import { findCutoutParent, subtractCutout, recomposeCutouts, cutRunsAcross } fro
 import { normalizeAgentReview } from "../lib/reviewState.js";
 import { oneClickEnabled, ONE_CLICK_GATE_MESSAGE, commandBoxEnabled } from "../lib/gate.js";
 import { computeShapeMetrics, needsMetrics, recalibrateShapes, linearVerticalFt } from "../lib/shapeMetrics.js";
-import { fmtCheckLen, parseLenInput, checkVerdict, M_PER_FT, areaVal, areaUnit, lenVal, lenUnit, calInputToFeet, heightVal, heightUnit, heightInputToFeet, heightStep, dimInputStr, dimLabel, volVal, volUnit } from "../lib/units";
+import { fmtCheckLen, checkVerdict, M_PER_FT, areaVal, areaUnit, lenVal, lenUnit, heightVal, heightUnit, heightInputToFeet, heightStep, dimInputStr, dimLabel, volVal, volUnit } from "../lib/units";
 import * as panelGeom from "../lib/panelGeometry.js";
 
 // Carpet roll width — a run reaching this needs a seam. The live cursor readout
@@ -411,7 +411,9 @@ export default function TakeoffCanvas() {
   // (rescaleSheet) clears the flag — the act is the confirmation.
   const [scaleUnconfirmed, setScaleUnconfirmed] = useState({});
   const confirmScale = (key) => setScaleUnconfirmed((m) => { if (!(key in m)) return m; const n = { ...m }; delete n[key]; return n; });
-  const [detectedScales, setDetectedScales] = useState({}); // { sheetKey: {upp,label,multi} } read off the plan text
+  const [detectedScales, setDetectedScales] = useState({}); // printed ratios or millimetre dimension evidence
+  const [scaleScanStatus, setScaleScanStatus] = useState({});
+  const ocrAttemptedRef = useRef(new Set());
   const isNarrow = useIsNarrow();
   const [darkMode, setDarkMode] = useState(() => { try { return localStorage.getItem("opentakeoff_dark") === "1"; } catch { return false; } });
   useEffect(() => { try { localStorage.setItem("opentakeoff_dark", darkMode ? "1" : "0"); } catch { /* private mode */ } }, [darkMode]);
@@ -487,6 +489,30 @@ export default function TakeoffCanvas() {
   const [activeLabel, setActiveLabel] = useState(null);   // session-only active phase/area label (#111) — new traces get it; NOT persisted (absent from buildPayload, reset on hydrate)
   const [palette, setPalette] = useState([]);   // ordered condition ids pinned to the top-bar quick-access palette (≤ PALETTE_MAX)
   const [shapes, setShapes] = useState([]);
+  // Fill only a previously unscaled, unmeasured sheet. Automated evidence
+  // remains unconfirmed until a person checks a known length.
+  useEffect(() => {
+    if (status !== "ready") return;
+    const proposed = Object.entries(detectedScales).filter(([key, det]) =>
+      det && !det.multi && det.auto !== false && det.upp > 0 && scales[key] == null &&
+      !shapes.some((shape) => shape.sheet_id === key));
+    if (!proposed.length) return;
+    setScales((current) => {
+      const next = { ...current };
+      for (const [key, det] of proposed) if (next[key] == null) next[key] = det.upp;
+      return next;
+    });
+    setScaleSources((current) => {
+      const next = { ...current };
+      for (const [key, det] of proposed) if (!next[key]) next[key] = det.method === "dimension" || det.method === "ocr" ? det.method : "detected";
+      return next;
+    });
+    setScaleUnconfirmed((current) => {
+      const next = { ...current };
+      for (const [key] of proposed) next[key] = false;
+      return next;
+    });
+  }, [detectedScales, scales, shapes, status]);
   const [poly, setPoly] = useState([]);
   // #284 — which of the in-progress trace's points are arc BOW points. Parallel
   // to poly and written ONLY through the three helpers below, so it can never
@@ -1714,6 +1740,9 @@ export default function TakeoffCanvas() {
       if (s.scale_confirmed === false) unconf[s.sheet_id] = false;   // scale gate: agent-set, awaiting a human
     }
     setScales(sc);
+    setDetectedScales({});
+    setScaleScanStatus({});
+    ocrAttemptedRef.current.clear();
     setScaleSources(src);
     setScaleUnconfirmed(unconf);
     // display units ride the payload (additive) — a metric project opens metric
@@ -2068,13 +2097,39 @@ export default function TakeoffCanvas() {
           const { points, segs, meta, imageArea, lum, layerOf, layerIds, subpaths } = extractVectorGeometry(ol, m.viewport.transform, pdfjsLib.OPS);
           snapGridsRef.current.set(m.key, buildSnapGrid(points, SNAP_CELL));
           vectorSegsRef.current.set(m.key, segs);
+          // A printed ratio takes precedence. Otherwise, agreeing millimetre
+          // dimension lines can propose the scale for human verification.
+          m.pageObj.getTextContent().then((tc) => {
+            if (stale() || detectScale(tc, m.viewport)) return;
+            const inferred = detectDimensionScale(tc, m.viewport, segs);
+            if (inferred) setDetectedScales((current) =>
+              current[m.key] ? current : { ...current, [m.key]: inferred });
+          }).catch(() => {});
           segMetaRef.current.set(m.key, meta);
           if (subpaths) subpathsRef.current.set(m.key, subpaths);
           if (lum) segLumRef.current.set(m.key, lum);
           textTfRef.current.set(m.key, m.viewport.transform);
           // raster-fallback trigger signals: how much of the sheet is placed
           // image, and whether the vector linework is dense enough to bound rooms
-          sheetStatsRef.current.set(m.key, { segCount: segs.length >> 2, imageFrac: Math.min(1, imageArea / (m.w * m.h)) });
+          const imageFrac = Math.min(1, imageArea / (m.w * m.h));
+          sheetStatsRef.current.set(m.key, { segCount: segs.length >> 2, imageFrac });
+          if (imageFrac >= 0.35 && scales[m.key] == null && !ocrAttemptedRef.current.has(m.key)) {
+            ocrAttemptedRef.current.add(m.key);
+            setScaleScanStatus((current) => ({ ...current, [m.key]: "reading" }));
+            import("../lib/ocrScale").then(({ detectRasterScale }) =>
+              detectRasterScale(m.pageObj, m.viewport, stale)
+            ).then((det) => {
+              if (stale()) {
+                ocrAttemptedRef.current.delete(m.key);
+                return;
+              }
+              if (det) setDetectedScales((current) => current[m.key] ? current : { ...current, [m.key]: det });
+              setScaleScanStatus((current) => ({ ...current, [m.key]: det ? "found" : "none" }));
+            }).catch(() => {
+              ocrAttemptedRef.current.delete(m.key);
+              if (!stale()) setScaleScanStatus((current) => ({ ...current, [m.key]: "error" }));
+            });
+          }
           // classify the sheet's PDF layer table (#85): the walk attributed
           // segments to OCG ids; the DOCUMENT declares id → (name, default
           // visibility). buildLayerInfos is the same pure derivation the MCP
@@ -4226,7 +4281,7 @@ export default function TakeoffCanvas() {
   }
 
   function applyCalibration() {
-    const feet = calInputToFeet(parseFloat(pendingLen), units);   // metric users type meters; stored scale stays feet
+    const feet = parseFloat(pendingLen) / 304.8; // all drawing dimensions are millimetres
     if (!(feet > 0) || calib.length !== 2) return;
     const pa = panelAt(calib[0][0]), pb = panelAt(calib[1][0]);
     if (pa.key !== pb.key) {
@@ -4246,7 +4301,7 @@ export default function TakeoffCanvas() {
   // Check tool's one-tap recalibrate: the measured span IS a calibration line —
   // same math as applyCalibration, sourced from the check points + stated value.
   function recalibrateFromCheck() {
-    const feet = parseLenInput(checkStated, units);
+    const feet = Number(checkStated.trim().replace(/mm$/i, "")) / 304.8; // drawing dimension in mm
     if (!(feet > 0) || check.length !== 2) return;
     const pa = panelAt(check[0][0]);
     if (panelAt(check[1][0])?.key !== pa?.key) return; // cross-panel span — the UI hides the button, but keep the function safe standalone
@@ -7496,7 +7551,7 @@ export default function TakeoffCanvas() {
   const checkCross = check.length === 2 && panelAt(check[1][0]).key !== checkPanel.key;
   const checkPx = check.length === 2 && !checkCross ? Math.hypot(check[1][0] - check[0][0], check[1][1] - check[0][1]) : 0;
   const checkFeet = checkUpp && checkPx ? checkPx * checkUpp : null;
-  const checkStatedFeet = parseLenInput(checkStated, units);
+  const checkStatedFeet = Number(checkStated.trim().replace(/mm$/i, "")) / 304.8;
   const checkErrPct = checkFeet && checkStatedFeet > 0 ? ((checkFeet - checkStatedFeet) / checkStatedFeet) * 100 : null;
 
   // Matches what the Markups tab actually renders post-Captures-split: the
@@ -7978,18 +8033,19 @@ export default function TakeoffCanvas() {
   // red dashed = unset ("you can't trace yet"), green = set, warning = the
   // plan notes a different scale than the one you picked
   const scaleDet = detectedScales[focusPanel.key];
-  const scaleMismatch = !!(unitsPerPx && stdValue && scaleDet && Math.abs(scaleDet.upp - unitsPerPx) > 1e-9);
+  const scaleMismatch = !!(unitsPerPx && stdValue && scaleDet && scaleDet.auto !== false && Math.abs(scaleDet.upp - unitsPerPx) > 1e-9);
   // scale gate: an agent-set scale no human has confirmed wears the warning
   // face until it's confirmed (menu row below) or replaced by a human act
   const scaleNeedsConfirm = !!unitsPerPx && scaleUnconfirmed[focusPanel.key] === false;
-  const scaleFace = !unitsPerPx ? "设置比例尺…" : scaleNeedsConfirm ? `⚠ ${stdValue || "自定义"} — 待确认` : `${scaleMismatch ? "≠" : "✓"} ${stdValue || "自定义"}`;
+  const autoScaleNeedsConfirm = scaleNeedsConfirm && ["detected", "dimension", "ocr"].includes(scaleSources[focusPanel.key]);
+  const scaleFace = !unitsPerPx ? "设置比例尺…" : scaleNeedsConfirm ? `⚠ ${autoScaleNeedsConfirm ? (scaleDet?.label || stdValue || "自动识别") : (stdValue || "自定义")} — 待核对` : `${scaleMismatch ? "≠" : "✓"} ${stdValue || (scaleDet?.auto !== false && Math.abs((scaleDet?.upp || 0) - unitsPerPx) < 1e-9 ? scaleDet.label : "自定义")}`;
   const scaleFaceStyle = !unitsPerPx
     ? { border: "1px dashed var(--c-danger)", color: "var(--c-danger)" }
     : scaleMismatch || scaleNeedsConfirm
       ? { border: "1px solid var(--c-warning)", color: "var(--c-warning)" }
       : { border: "1px solid var(--c-positive)", color: "var(--c-positive)" };
   const scaleTitle = scaleNeedsConfirm
-    ? "比例尺由智能代理设置，尚未经人工确认。请先用图纸上的已知尺寸核对（K），再在菜单中确认。"
+    ? (autoScaleNeedsConfirm ? "已根据图纸标注自动填写比例尺。图纸数字按毫米解释；请用已知尺寸核对（K），再确认。" : "比例尺由智能代理设置，尚未经人工确认。请先用图纸上的已知尺寸核对（K），再在菜单中确认。")
     : scaleMismatch
       ? `当前设置为 ${stdValue}，但图纸 ${labelFor(focusPanel)} 标注 ${scaleDet.label}。请先核对。`
       : `设置 ${labelFor(focusPanel)} 的比例尺；每张图纸独立保存${groupKeys.length > 1 ? "，当前作用于最后点击的图纸" : ""}。`;
@@ -7997,8 +8053,8 @@ export default function TakeoffCanvas() {
   if (scaleNeedsConfirm) {
     scaleItems.push({
       id: "confirm-scale", icon: "check", tint: "var(--c-warning)",
-      label: "确认 AI 设置的比例尺",
-      title: "此比例尺来自智能代理，尚无人确认。建议先用已知标注尺寸核对（K）；错误比例尺会影响整张图纸的工程量。",
+      label: autoScaleNeedsConfirm ? "确认自动识别的比例尺" : "确认 AI 设置的比例尺",
+      title: autoScaleNeedsConfirm ? "自动识别结果按毫米尺寸标注计算，尚未经人工核对。请先核对已知尺寸（K）；错误比例尺会影响工程量。" : "此比例尺来自智能代理，尚无人确认。建议先用已知标注尺寸核对（K）；错误比例尺会影响整张图纸的工程量。",
       onSelect: () => confirmScale(focusPanel.key),
     });
     scaleItems.push("divider");
@@ -8016,13 +8072,14 @@ export default function TakeoffCanvas() {
     });
     scaleItems.push("divider");
   }
-  if (scaleDet) {
+  if (scaleDet?.auto === false) scaleItems.push({ note: `${scaleDet.label}；${scaleDet.reason || "请人工校准。"}` });
+  if (scaleDet && scaleDet.auto !== false) {
     scaleItems.push({ section: "图纸标注" });
     scaleItems.push({
       id: "use-detected", icon: "target", tint: "var(--c-positive)",
       label: `图纸标注 ${scaleDet.label}${scaleDet.multi ? " ±" : ""} — 应用`,
-      title: `图纸 ${labelFor(focusPanel)} 标注 ${scaleDet.label}${scaleDet.multi ? "，且存在多个比例尺；请对照已知尺寸确认" : ""}。悬停可预览比例尺校准线。`,
-      onSelect: () => { rescaleSheet(focusPanel.key, scaleDet.upp); setScaleSources((s) => ({ ...s, [focusPanel.key]: "detected" })); showScaleGuide(focusPanel.key, scaleDet.upp, scaleDet.label); },
+      title: scaleDet.reason || `图纸 ${labelFor(focusPanel)} 标注 ${scaleDet.label}${scaleDet.multi ? "，且存在多个比例尺；请对照已知尺寸确认" : ""}。悬停可预览比例尺校准线。`,
+      onSelect: () => { rescaleSheet(focusPanel.key, scaleDet.upp); setScaleSources((s) => ({ ...s, [focusPanel.key]: scaleDet.method === "dimension" || scaleDet.method === "ocr" ? scaleDet.method : "detected" })); showScaleGuide(focusPanel.key, scaleDet.upp, scaleDet.label); },
       // hover previews the guide bar behind the open menu — only while the
       // sheet is still UNSCALED (upstream's gate: on a scaled sheet the bar
       // would advertise a scale the sheet is not using, on the very affordance
@@ -8032,6 +8089,9 @@ export default function TakeoffCanvas() {
       onHover: (on) => { if (on) { if (!scales[focusPanel.key]) showScaleGuide(focusPanel.key, scaleDet.upp, scaleDet.label, true); } else clearPreviewGuide(); },
     });
   }
+  if (scaleScanStatus[focusPanel.key] === "reading") scaleItems.push({ note: "正在本地读取扫描图纸中的毫米标注…" });
+  if (scaleScanStatus[focusPanel.key] === "none") scaleItems.push({ note: "扫描图纸未找到两处一致的毫米尺寸标注；请手动校准。" });
+  if (scaleScanStatus[focusPanel.key] === "error") scaleItems.push({ note: "扫描图纸 OCR 暂不可用；请手动校准。" });
   scaleItems.push({ section: "标准比例" });
   for (const s of STANDARD_SCALES) scaleItems.push({ id: s.label, label: s.label, active: stdValue === s.label, onSelect: () => { rescaleSheet(focusPanel.key, s.upp); setScaleSources((sc) => ({ ...sc, [focusPanel.key]: "standard" })); showScaleGuide(focusPanel.key, s.upp, s.label); } });
   scaleItems.push("divider");
@@ -8566,7 +8626,7 @@ export default function TakeoffCanvas() {
         <div style={{ padding: "8px 14px", background: "var(--paper-bright)", borderBottom: "1px solid var(--hairline-warm)", fontSize: 14 }}>
           {calib.length < 2 ? <span>比例校准：点击已知尺寸的两个端点（{calib.length}/2）。建议选择较长尺寸，也可在上方选用标准比例。</span> : (
             <span>实际长度：{" "}
-              <input name="calibration-length" type="number" value={pendingLen} onChange={(e) => setPendingLen(e.target.value)} onKeyDown={(e) => e.key === "Enter" && applyCalibration()} placeholder={units === "metric" ? "米" : "英尺"} autoFocus style={{ width: 90, padding: 5, borderRadius: 0, border: "1px solid var(--ink-faint)" }} /> {units === "metric" ? "m" : "ft"}
+              <input name="calibration-length" type="number" value={pendingLen} onChange={(e) => setPendingLen(e.target.value)} onKeyDown={(e) => e.key === "Enter" && applyCalibration()} placeholder="毫米" autoFocus style={{ width: 90, padding: 5, borderRadius: 0, border: "1px solid var(--ink-faint)" }} /> mm
               <button onClick={applyCalibration} style={{ marginLeft: 8, padding: "5px 12px", borderRadius: 0, border: "none", background: "var(--ink)", color: "var(--paper-bright)", cursor: "pointer" }}>应用</button>
               <button onClick={() => setCalib([])} style={{ marginLeft: 6, padding: "5px 10px", borderRadius: 0, border: "1px solid var(--ink-faint)", background: "transparent", cursor: "pointer" }}>重置</button>
             </span>
@@ -8579,17 +8639,17 @@ export default function TakeoffCanvas() {
       {tool === "check" && (
         <div style={{ padding: "8px 14px", background: "var(--paper-bright)", borderBottom: "1px solid var(--hairline-warm)", fontSize: 14 }}>
           {check.length < 2 ? (
-            <span>Check a dimension: click both ends of a printed dimension ({check.length}/2). The measured length shows here — compare it with what the drawing says.</span>
+            <span>核对尺寸：依次点击图纸标注的两个端点（{check.length}/2），再输入标注长度（毫米）。</span>
           ) : checkCross ? (
             <span style={{ color: "var(--c-danger)" }}>Check on one sheet — those two clicks landed on different sheets. <button onClick={() => { setCheck([]); setCheckStated(""); }} style={{ marginLeft: 6, padding: "5px 10px", borderRadius: 0, border: "1px solid var(--ink-faint)", background: "transparent", cursor: "pointer" }}>重置</button></span>
           ) : !checkUpp ? (
-            <span style={{ color: "var(--c-danger)" }}>No scale set for {labelFor(checkPanel)} — pick a standard scale or calibrate first, then check it here.</span>
+            <span style={{ color: "var(--c-danger)" }}>此图尚未设置比例尺，请先选择标准比例或手动校准。</span>
           ) : checkPx <= 0 ? (
-            <span style={{ color: "var(--c-danger)" }}>Those two clicks landed on the same point — click the two <b>ends</b> of a printed dimension.</span>
+            <span style={{ color: "var(--c-danger)" }}>两个点重合，请重新点击尺寸标注的两个<b>端点</b>。</span>
           ) : (
             <span>
-              measures <b style={{ fontFamily: "var(--f-mono)" }}>{fmtCheckLen(checkFeet, units)}</b> at {stdValue || "custom scale"} · drawing says{" "}
-              <input name="check-stated-length" value={checkStated} onChange={(e) => setCheckStated(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} placeholder={units === "metric" ? "meters" : `feet (12'6, 6" ok)`} autoFocus style={{ width: 100, padding: 5, borderRadius: 0, border: "1px solid var(--ink-faint)" }} /> {units === "metric" ? "m" : "ft"}
+              当前比例尺下测得 <b style={{ fontFamily: "var(--f-mono)" }}>{`${Math.round(checkFeet * 304.8)} mm`}</b> · 图纸标注{" "}
+              <input name="check-stated-length" value={checkStated} onChange={(e) => setCheckStated(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} placeholder="毫米" autoFocus style={{ width: 100, padding: 5, borderRadius: 0, border: "1px solid var(--ink-faint)" }} /> mm
               {checkErrPct != null && (() => {
                 // checkVerdict grades the ROUNDED value the chip displays (and
                 // normalizes -0), so color and number can never contradict —

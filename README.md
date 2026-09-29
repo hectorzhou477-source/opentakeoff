@@ -3,7 +3,10 @@
 <!-- Modified by Quantifin, 2026-09-28: document downstream Chinese entry. -->
 # Quantifin 本地前端
 
+<!-- Quantifin modification, 2026-09-29: automatic mm scale workflow. -->
 本分支新增中文工作台，访问 `/`；Quantifin 算量编辑器位于 `/takeoff`。提供本地图纸导入和搜索、中文测量工具、复核状态汇总、公制工程量清单及 CSV 导出。组织协作页仅为功能规划，部分高级提示仍为英文。详情见 [Quantifin 说明](docs/QUANTIFIN.md)和[维护日志](docs/MAINTENANCE_LOG.md)。
+
+自动比例尺：PDF 的印刷比例或至少两处一致的毫米尺寸可触发自动填写；扫描件在本地 OCR 后交叉核对。结果仍需人工用 K 核对已知尺寸。单个 OCR 比例标注不能证明扫描像素密度，因此不会自动应用。DWG 当前须先导出 PDF。详见 [中文使用说明](docs/QUANTIFIN.md)。
 
 # OpenTakeoff
 

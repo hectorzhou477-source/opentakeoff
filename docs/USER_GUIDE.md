@@ -1164,3 +1164,7 @@ Open the guide (`?`) for links to the [Privacy Policy](https://opentakeoff.kentu
 <!-- Modified by Quantifin, 2026-09-28: downstream entry guide. -->
 
 Quantifin 用户：中文工作台位于 `/`，原画布位于 `/takeoff`。工作台操作范围与限制见 [Quantifin 中文指南](QUANTIFIN.md)。以下为保留的上游画布手册。
+
+## Quantifin: 毫米标注自动比例尺
+
+PDF 的比例标注或两处一致的毫米尺寸线可自动填写比例尺。扫描件会在浏览器内 OCR，并用尺寸线核验；只有 OCR 比例文字时仍需手动校准。黄色待核对状态须用 K 对照已知尺寸，公制输入单位为 mm，然后在比例尺菜单确认。DWG 先导出 PDF。自动识别不等于工程量已人工复核。

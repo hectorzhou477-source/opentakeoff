@@ -1,4 +1,4 @@
-// Modified by Quantifin, 2026-09-28: Chinese editor UI.
+// Modified by Quantifin, 2026-09-28 and 2026-09-29: Chinese editor UI.
 // PlanNavigator — the single, harmonized surface for choosing plans, merging the
 // former SheetGallery (working-set thumbnail grid) and DrivePicker (browse the
 // project's Drive folder) into ONE chrome with two modes: "plan" and "browse".
@@ -696,7 +696,7 @@ export default function PlanNavigator({
                    {isOpenTab && <span title="已在标签页打开" style={{ fontSize: 9.5, fontFamily: "var(--f-mono)", color: "var(--cobalt)", textTransform: "uppercase", letterSpacing: "0.08em" }}>已打开</span>}
                   {cnt > 0 && <span style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, color: "var(--ink-muted)" }}>{cnt}▦</span>}
                   <span style={{ fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", color: scales[key] ? (scaleUnconfirmed[key] === false ? "var(--c-warning)" : "var(--c-positive)") : detectedScales[key] ? "var(--c-warning)" : "var(--c-danger)" }}
-                     title={scales[key] && scaleUnconfirmed[key] === false ? "比例尺由智能代理设置，尚未经人工确认；请打开图纸后从比例尺菜单确认" : undefined}>
+                     title={scales[key] && scaleUnconfirmed[key] === false ? "比例尺自动识别结果尚未经人工确认；请打开图纸后核对已知尺寸" : undefined}>
                      {scales[key] ? (scaleUnconfirmed[key] === false ? "比例尺 ⚠ 待确认" : "比例尺 ✓") : detectedScales[key] ? `图纸标注：${detectedScales[key].label}` : "未设比例尺"}
                   </span>
                 </div>
