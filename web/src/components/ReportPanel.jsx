@@ -1,3 +1,4 @@
+// Modified by Quantifin, 2026-09-28: localize user-facing editor labels; preserve data keys.
 // ReportPanel — the takeoff deliverable. A STACK-style breakdown by condition
 // (finish): measured quantity, waste %, and waste-adjusted order quantity, with
 // a grand total. Exports to CSV / JSON, prints, and hosts the opt-in
@@ -5,7 +6,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../brand/icons.jsx";
 import ToolMenu from "./ToolMenu.jsx";
-import { conditionTotals, grandTotals, sheetTotals, sheetGroupedRows, labelGroupedRows, authorGroupedRows, sheetLabelGroupedRows, round2, totalsToCsv, downloadText, materialsSummary, reportJson, hasMultipliers, BY_SHEET_BASE_NOTE } from "../lib/totals.js";
+import { conditionTotals, grandTotals, sheetTotals, sheetGroupedRows, labelGroupedRows, authorGroupedRows, sheetLabelGroupedRows, round2, totalsToCsv, downloadText, materialsSummary, reportJson, hasMultipliers } from "../lib/totals.js";
 import { TABLE_PROFILE, CSV_PROFILE, colGetter, customColProfile, specColProfile, laborColProfile, rollColProfile, partitionRowsBy, forceIncludeGroupCol, loadColPrefs, saveColPrefs, loadGroupBy, saveGroupBy, visibleCols, floorPerimeterLf, applyUnits } from "../lib/reportColumns.js";
 import { rollReportRows, seamLfByShape } from "../lib/rollTakeoff.js";
 import { areaVal, areaUnit, lenVal, lenUnit } from "../lib/units";
@@ -23,20 +24,21 @@ import { reportWorkbook, buildXlsx } from "../lib/xlsx.js";
 import { buildContribution, sendContribution, isContributeConfigured } from "../lib/contribute.js";
 import { activeTheme, saveActiveThemeFile, clearActiveTheme } from "../lib/reportTheme.js";
 import { normalizeLogoToPng, loadProfiles, saveProfiles, activeProfile, updateActiveProfile, addProfile, setActiveProfile, removeProfile } from "../lib/identity.js";
-import { resolveBranding, loadBrandingSelection, saveBrandingSelection } from "../lib/branding.js";
+import { loadBrandingSelection, saveBrandingSelection } from "../lib/branding.js";
+import { resolveQuantifinBranding } from "../lib/quantifinBranding.js";
 import { projectIdFromUrl } from "../lib/store.js";
 import { describeConditionEdit, proposedConditionEditRows } from "../lib/proposals.js";
 
 const num = (v, d = 1) => (Number(v) || 0).toLocaleString(undefined, { maximumFractionDigits: d });
 
 // the report's one caveat line — page-strip on every printed page + masthead
-const DISCLAIMER = "Quantities derived from drawings at stated scales; verify in field.";
+const DISCLAIMER = "工程量依据图纸及所示比例尺计算，施工前请现场核实。";
 
 // one-line hints for the opt-in columns in the picker (waste hint sits under
 // the second waste checkbox so it reads once for the pair)
 const COL_HINTS = {
-  waste_lf: "Waste SF/LF = (w/Waste) − measured",
-  perimeter_ref: "Perimeter is reference only — includes openings; not totaled",
+  waste_lf: "损耗量 = 含损耗量 − 实测量",
+  perimeter_ref: "周长仅供参考，包含洞口，不计入合计",
 };
 
 const sheetNum = (v, d = 1) => {
@@ -46,6 +48,8 @@ const sheetNum = (v, d = 1) => {
   if (r < 0) return <span style={{ color: "var(--c-danger)" }}>({num(-r, d)})</span>;
   return num(r, d);
 };
+
+const zhHeader = (text) => ({Finish:"饰面",Shapes:"测量项",Waste:"损耗率",EA:"数量",M:"长度 m","Floor m²":"地面 m²","Wall m²":"墙面 m²","Border m²":"边带 m²","m² w/Waste":"含损耗 m²", "Total m²":"合计 m²", "Perimeter m":"周长 m", "Roll Order m":"卷材订货 m", "Rolls":"卷数", "Seams m":"接缝 m"})[text] || text;
 
 export default function ReportPanel({ projectName, onProjectName, conditions, shapes, sheetLabel, sheetDims, onMarkedSet, markedSetDark, onClose, markups = [], rfis = [], scaleInfo = [], provenanceCounters = null, clientInfo = {}, onClientInfo, conditionColumns = [], shapeLabels = [], units = "imperial", rollByCond = null, conditionEditProposals = [] }) {
   // proposals (#365): a pending condition-edit diff prints BESIDE the current
@@ -74,7 +78,7 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
         saveActiveThemeFile(raw);
         setTheme(activeTheme());
       } catch {
-        setTheme((t) => ({ ...t, warnings: ["That file isn't valid JSON — expected a design-token file."] }));
+        setTheme((t) => ({ ...t, warnings: ["文件不是有效的 JSON；请选择设计令牌文件。"] }));
       }
     };
     reader.readAsText(f);
@@ -112,7 +116,7 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
   // end credit. company is null in default mode → the firm block renders the
   // OpenTakeoff brand name instead of a trade-name identity (read only inside the
   // brand.clear branch below, so it is never dereferenced when null).
-  const brand = resolveBranding({ ...brandSel, profiles: loadProfiles().profiles });
+  const brand = resolveQuantifinBranding({ ...brandSel, profiles: loadProfiles().profiles });
   const company = brand.company;
   const hasClient = Boolean(clientInfo.client_name || clientInfo.client_address || clientInfo.reference || clientInfo.date);
   const [colPrefs, setColPrefs] = useState(loadColPrefs);
@@ -263,7 +267,7 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
     setTplName("");
   };
   const renameTpl = (t) => {
-    const nm = (window.prompt("Rename template:", t.name) || "").trim();
+    const nm = (window.prompt("重命名报表模板：", t.name) || "").trim();
     if (!nm || nm === t.name) return;
     setTemplates(renameTemplate(t.id, nm));
   };
@@ -273,18 +277,18 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
   // getAccessToken is safe to import statically (auth.js already ships).
   const pushToDrive = async () => {
     if (!canSync || syncBusy) return;
-    setSyncBusy(true); setSyncMsg("Pushing…");
+    setSyncBusy(true); setSyncMsg("正在保存到 Drive…");
     try {
       const { createDrive } = await import("../lib/google/drive.js");
       const { count } = await pushTemplatesToDrive(createDrive({ getToken: getAccessToken }), driveRoot, googleUser.email, templates);
-      setSyncMsg(`Pushed ${count} to Drive.`);
+      setSyncMsg(`已保存 ${count} 个模板到 Drive。`);
     } catch (e) {
-      setSyncMsg(`Push failed: ${String(e?.message || e)}`);
+      setSyncMsg(`保存失败：${String(e?.message || e)}`);
     } finally { setSyncBusy(false); }
   };
   const loadFromDrive = async () => {
     if (!canSync || syncBusy) return;
-    setSyncBusy(true); setSyncMsg("Loading…");
+    setSyncBusy(true); setSyncMsg("正在从 Drive 载入…");
     try {
       const { createDrive } = await import("../lib/google/drive.js");
       const remote = await loadTemplatesFromDrive(createDrive({ getToken: getAccessToken }), driveRoot, googleUser.email);
@@ -297,9 +301,9 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
       const added = merged.length - before;
       // Disambiguate a zero result: an empty Drive file reads differently to a
       // user than "you already have everything on Drive."
-      setSyncMsg(added > 0 ? `Loaded ${added} from Drive.` : remote.length === 0 ? "Nothing saved on Drive yet." : "Already up to date — no new templates.");
+      setSyncMsg(added > 0 ? `已从 Drive 载入 ${added} 个模板。` : remote.length === 0 ? "Drive 中尚无模板。" : "已是最新，没有新增模板。");
     } catch (e) {
-      setSyncMsg(`Load failed: ${String(e?.message || e)}`);
+      setSyncMsg(`载入失败：${String(e?.message || e)}`);
     } finally { setSyncBusy(false); }
   };
 
@@ -425,7 +429,7 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
     <React.Fragment key={c.key}>
       <label style={{ display: "flex", gap: 8, alignItems: "center", padding: "3px 0", cursor: "pointer" }}>
         <input name="report-column-toggle" type="checkbox" checked={colPrefs[c.key] ?? c.defaultVisible} onChange={() => toggleCol(c)} />
-        <span>{c.header}</span>
+        <span>{zhHeader(c.header)}</span>
       </label>
       {COL_HINTS[c.key] && (
         <div style={{ margin: "0 0 4px 24px", fontSize: 10.5, color: "var(--ink-muted)", lineHeight: 1.5 }}>{COL_HINTS[c.key]}</div>
@@ -437,54 +441,54 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
     <div className="report-panel" style={{ ...theme.vars, position: "absolute", inset: 0, zIndex: 50, display: "flex", flexDirection: "column", background: "var(--paper-cream)" }}>
       <div className="report-toolbar" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: "1px solid var(--ink)", background: "var(--paper-bright)" }}>
         <Icon name="takeoffs" size={18} />
-        <strong style={{ fontFamily: "var(--f-display)", fontSize: 16, color: "var(--ink)" }}>Takeoff report</strong>
-        <input name="project-name" value={projectName} onChange={(e) => onProjectName(e.target.value)} placeholder="Project name (optional)"
+        <strong style={{ fontFamily: "var(--f-display)", fontSize: 16, color: "var(--ink)" }}>工程量报表</strong>
+         <input name="project-name" value={projectName} onChange={(e) => onProjectName(e.target.value)} placeholder="项目名称（选填）"
           className="field-input" style={{ width: 260, padding: "5px 9px", fontSize: 13 }} />
         <div style={{ flex: 1 }} />
         <button className="btn-ghost" onClick={() => setShowInfo(true)}
-          title="Your company identity and the client/job details for the print header and marked-set cover">Project info</button>
+           title="设置公司信息及打印报表、标注图纸封面的项目资料">项目信息</button>
         {/* always rendered, even with zero custom columns — Sheet grouping
             is useful on its own */}
         <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--ink)", whiteSpace: "nowrap" }}
-          title="Break the condition table into sections with subtotals">
-          Group:
+           title="按指定字段分组并显示小计">
+          分组：
           <select name="report-group-by" value={groupBy} onChange={(e) => { setGroupByRaw(e.target.value); saveGroupBy(e.target.value); }}
             style={{ padding: "5px 6px", border: "1px solid var(--ink-faint)", background: "transparent", fontSize: 12, maxWidth: 160 }}>
-            <option value="">None</option>
-            <option value="sheet">Sheet</option>
-            {shapeLabels.length > 0 && <option value="label">Label</option>}
-            {hasAuthors && <option value="author">Author</option>}
+            <option value="">不分组</option>
+            <option value="sheet">图纸</option>
+             {shapeLabels.length > 0 && <option value="label">标签</option>}
+            {hasAuthors && <option value="author">作者</option>}
             {conditionColumns.map((cc) => (
               <option key={cc.id} value={cc.id}>{columnLabel(cc)}</option>
             ))}
           </select>
         </label>
         <div ref={colsRef} style={{ position: "relative" }}>
-          <button className="btn-ghost" onClick={() => setShowCols((s) => !s)} title="Choose which columns the table and CSV show">Columns</button>
+           <button className="btn-ghost" onClick={() => setShowCols((s) => !s)} title="选择报表和 CSV 显示的列">报表字段</button>
           {showCols && (
             <div className="report-modal" style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 70, width: 272, background: "var(--paper-bright)", border: "1px solid var(--ink)", boxShadow: "var(--shadow-2)", padding: "10px 12px", fontSize: 12.5, color: "var(--ink)" }}>
               <div style={{ display: "flex", alignItems: "center", marginBottom: 6 }}>
-                <strong style={{ fontFamily: "var(--f-display)", fontSize: 13 }}>Columns</strong>
+                 <strong style={{ fontFamily: "var(--f-display)", fontSize: 13 }}>报表字段</strong>
                 <div style={{ flex: 1 }} />
-                <button onClick={applyLaborPreset} title="No-waste actuals per condition — hides SF/SY w/Waste, shows Total SF"
-                  style={{ border: "none", background: "transparent", color: "var(--cobalt)", cursor: "pointer", fontSize: 11.5, padding: "0 10px 0 0" }}>Labor view</button>
-                <button onClick={() => { setColPrefs({}); saveColPrefs({}); }} title="Back to the default column set"
-                  style={{ border: "none", background: "transparent", color: "var(--cobalt)", cursor: "pointer", fontSize: 11.5, padding: "0 10px 0 0" }}>Reset</button>
-                <button onClick={() => setShowCols(false)} title="Close"
+                 <button onClick={applyLaborPreset} title="按饰面显示不含损耗的实测量"
+                   style={{ border: "none", background: "transparent", color: "var(--cobalt)", cursor: "pointer", fontSize: 11.5, padding: "0 10px 0 0" }}>人工清单</button>
+                 <button onClick={() => { setColPrefs({}); saveColPrefs({}); }} title="恢复默认字段"
+                  style={{ border: "none", background: "transparent", color: "var(--cobalt)", cursor: "pointer", fontSize: 11.5, padding: "0 10px 0 0" }}>重置</button>
+                <button onClick={() => setShowCols(false)} title="关闭"
                   style={{ border: "none", background: "transparent", color: "var(--ink-muted)", cursor: "pointer", fontSize: 13, padding: 0, lineHeight: 1 }}>✕</button>
               </div>
               {TABLE_PROFILE.filter((c) => !c.locked && c.defaultVisible).map(colCheckbox)}
-              <div style={{ borderTop: "1px solid var(--ink-faint)", margin: "8px 0 4px", paddingTop: 6, fontFamily: "var(--f-mono)", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--ink-muted)" }}>Optional</div>
+               <div style={{ borderTop: "1px solid var(--ink-faint)", margin: "8px 0 4px", paddingTop: 6, fontFamily: "var(--f-mono)", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--ink-muted)" }}>可选字段</div>
               {TABLE_PROFILE.filter((c) => !c.locked && !c.defaultVisible).map(colCheckbox)}
-              <div style={{ borderTop: "1px solid var(--ink-faint)", margin: "8px 0 4px", paddingTop: 6, fontFamily: "var(--f-mono)", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--ink-muted)" }}>Custom columns</div>
+               <div style={{ borderTop: "1px solid var(--ink-faint)", margin: "8px 0 4px", paddingTop: 6, fontFamily: "var(--f-mono)", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--ink-muted)" }}>自定义字段</div>
               {customCols.length ? customCols.map(colCheckbox) : (
-                <div style={{ fontSize: 10.5, color: "var(--ink-muted)", lineHeight: 1.5 }}>No custom columns yet — define them from the condition bar in the canvas.</div>
+                 <div style={{ fontSize: 10.5, color: "var(--ink-muted)", lineHeight: 1.5 }}>尚无自定义字段；可在画布的饰面设置中添加。</div>
               )}
               {/* read-only product-spec columns — only shown when a schedule
                   import attached spec data to at least one condition */}
               {specCols.length > 0 && (
                 <>
-                  <div style={{ borderTop: "1px solid var(--ink-faint)", margin: "8px 0 4px", paddingTop: 6, fontFamily: "var(--f-mono)", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--ink-muted)" }}>Product spec (imported)</div>
+                   <div style={{ borderTop: "1px solid var(--ink-faint)", margin: "8px 0 4px", paddingTop: 6, fontFamily: "var(--f-mono)", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--ink-muted)" }}>导入的产品规格</div>
                   {specCols.map(colCheckbox)}
                 </>
               )}
@@ -492,42 +496,42 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
                   a value typed in from the Supporting Materials panel */}
               {laborCols.length > 0 && (
                 <>
-                  <div style={{ borderTop: "1px solid var(--ink-faint)", margin: "8px 0 4px", paddingTop: 6, fontFamily: "var(--f-mono)", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--ink-muted)" }}>Labor & subfloor</div>
+                   <div style={{ borderTop: "1px solid var(--ink-faint)", margin: "8px 0 4px", paddingTop: 6, fontFamily: "var(--f-mono)", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--ink-muted)" }}>人工与基层</div>
                   {laborCols.map(colCheckbox)}
                 </>
               )}
-              <p style={{ margin: "8px 0 0", fontSize: 11, color: "var(--ink-muted)" }}>Also applies to the CSV export. Grouping by a custom column always exports that column.</p>
+               <p style={{ margin: "8px 0 0", fontSize: 11, color: "var(--ink-muted)" }}>设置也应用于 CSV 导出；按自定义字段分组时，导出文件会包含该字段。</p>
             </div>
           )}
         </div>
         <div ref={templatesRef} style={{ position: "relative" }}>
-          <button className="btn-ghost" onClick={() => setShowTemplates((s) => !s)} title="Save and recall report layouts (columns + grouping)">Templates{templates.length ? ` (${templates.length})` : ""}</button>
+           <button className="btn-ghost" onClick={() => setShowTemplates((s) => !s)} title="保存或调用报表字段和分组设置">报表模板{templates.length ? ` (${templates.length})` : ""}</button>
           {showTemplates && (
             <div className="report-modal" style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 70, width: 260, background: "var(--paper-bright)", border: "1px solid var(--ink)", boxShadow: "var(--shadow-2)", padding: "10px 12px", fontSize: 12.5, color: "var(--ink)" }}>
               <div style={{ display: "flex", alignItems: "center", marginBottom: 6 }}>
-                <strong style={{ fontFamily: "var(--f-display)", fontSize: 13 }}>Templates</strong>
+                <strong style={{ fontFamily: "var(--f-display)", fontSize: 13 }}>报表模板</strong>
                 <div style={{ flex: 1 }} />
-                <button onClick={() => setShowTemplates(false)} title="Close"
+                <button onClick={() => setShowTemplates(false)} title="关闭"
                   style={{ border: "none", background: "transparent", color: "var(--ink-muted)", cursor: "pointer", fontSize: 13, padding: 0, lineHeight: 1 }}>✕</button>
               </div>
-              <div style={{ fontSize: 10.5, color: "var(--ink-muted)", lineHeight: 1.4, marginBottom: 6 }}>Saved column + grouping layouts (this device). Click one to apply.</div>
-              {templates.length === 0 && <div style={{ fontSize: 10.5, color: "var(--ink-muted)", marginBottom: 6 }}>No saved templates yet.</div>}
+               <div style={{ fontSize: 10.5, color: "var(--ink-muted)", lineHeight: 1.4, marginBottom: 6 }}>模板保存在当前设备；点击名称即可应用。</div>
+               {templates.length === 0 && <div style={{ fontSize: 10.5, color: "var(--ink-muted)", marginBottom: 6 }}>尚无已保存的模板。</div>}
               {templates.map((t) => (
                 <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 0" }}>
-                  <button onClick={() => applyTemplate(t)} title="Apply this layout"
+                   <button onClick={() => applyTemplate(t)} title="应用此模板"
                     style={{ flex: 1, minWidth: 0, textAlign: "left", border: "none", background: "transparent", color: "var(--ink)", cursor: "pointer", fontSize: 12, padding: "3px 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</button>
-                  <button onClick={() => renameTpl(t)} title="Rename"
+                   <button onClick={() => renameTpl(t)} title="重命名"
                     style={{ padding: "0 3px", border: "none", background: "transparent", color: "var(--ink-muted)", cursor: "pointer", fontSize: 11 }}>✎</button>
-                  <button onClick={() => setTemplates(deleteTemplate(t.id))} title="Delete this template"
+                   <button onClick={() => setTemplates(deleteTemplate(t.id))} title="删除此模板"
                     style={{ padding: "0 3px", border: "none", background: "transparent", color: "var(--c-danger)", cursor: "pointer", fontSize: 11 }}>✕</button>
                 </div>
               ))}
               <div style={{ display: "flex", alignItems: "center", gap: 6, borderTop: "1px solid var(--ink-faint)", marginTop: 6, paddingTop: 8 }}>
                 <input name="template-name" value={tplName} onChange={(e) => setTplName(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && saveAsTemplate()}
-                  placeholder="Name this layout" style={{ flex: 1, minWidth: 0, padding: "3px 6px", borderRadius: 0, border: "1px solid var(--ink-faint)", fontSize: 12 }} />
-                <button onClick={saveAsTemplate} disabled={!tplName.trim()} title="Save the current columns + grouping under this name"
-                  style={{ padding: "3px 8px", borderRadius: 0, border: "1px dashed var(--ink-faint)", background: "transparent", color: "var(--ink-muted)", cursor: "pointer", fontSize: 12 }}>Save</button>
+                   placeholder="输入模板名称" style={{ flex: 1, minWidth: 0, padding: "3px 6px", borderRadius: 0, border: "1px solid var(--ink-faint)", fontSize: 12 }} />
+                 <button onClick={saveAsTemplate} disabled={!tplName.trim()} title="保存当前字段和分组设置"
+                  style={{ padding: "3px 8px", borderRadius: 0, border: "1px dashed var(--ink-faint)", background: "transparent", color: "var(--ink-muted)", cursor: "pointer", fontSize: 12 }}>保存</button>
               </div>
               {/* Optional Drive sync — only when signed in and a Projects root is
                   configured. Load MERGES (this device wins on a name clash); it
@@ -535,12 +539,12 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
                   "Sync," to avoid over-promising two-way behavior. */}
               {canSync && (
                 <div style={{ borderTop: "1px solid var(--ink-faint)", marginTop: 8, paddingTop: 8 }}>
-                  <div style={{ fontSize: 10.5, color: "var(--ink-muted)", lineHeight: 1.4, marginBottom: 6 }}>Carry these across your own devices via Drive. Load only adds templates this device doesn't have — a same-name template is never overwritten (rename or delete it here first to pull a newer copy).</div>
+                   <div style={{ fontSize: 10.5, color: "var(--ink-muted)", lineHeight: 1.4, marginBottom: 6 }}>可通过 Drive 在自己的设备间传递模板。载入只添加本机没有的模板，不覆盖同名模板。</div>
                   <div style={{ display: "flex", gap: 6 }}>
-                    <button onClick={pushToDrive} disabled={syncBusy} title="Write your saved templates to your private Drive file"
-                      style={{ flex: 1, padding: "4px 8px", borderRadius: 0, border: "1px solid var(--ink-faint)", background: "transparent", color: "var(--cobalt)", cursor: syncBusy ? "default" : "pointer", fontSize: 12 }}>Push to Drive</button>
-                    <button onClick={loadFromDrive} disabled={syncBusy} title="Merge templates from your Drive file into this device"
-                      style={{ flex: 1, padding: "4px 8px", borderRadius: 0, border: "1px solid var(--ink-faint)", background: "transparent", color: "var(--cobalt)", cursor: syncBusy ? "default" : "pointer", fontSize: 12 }}>Load from Drive</button>
+                     <button onClick={pushToDrive} disabled={syncBusy} title="写入私人 Drive 文件"
+                       style={{ flex: 1, padding: "4px 8px", borderRadius: 0, border: "1px solid var(--ink-faint)", background: "transparent", color: "var(--cobalt)", cursor: syncBusy ? "default" : "pointer", fontSize: 12 }}>保存到 Drive</button>
+                     <button onClick={loadFromDrive} disabled={syncBusy} title="将 Drive 模板合并到本机"
+                       style={{ flex: 1, padding: "4px 8px", borderRadius: 0, border: "1px solid var(--ink-faint)", background: "transparent", color: "var(--cobalt)", cursor: syncBusy ? "default" : "pointer", fontSize: 12 }}>从 Drive 载入</button>
                   </div>
                   {syncMsg && <div style={{ fontSize: 10.5, color: "var(--ink-muted)", marginTop: 6 }}>{syncMsg}</div>}
                 </div>
@@ -549,17 +553,17 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
           )}
         </div>
         <div ref={themeRef} style={{ position: "relative" }}>
-          <button className="btn-ghost" onClick={() => setShowTheme((s) => !s)} title="Apply an imported design-token theme to the report (colors + fonts)">Theme{theme.name ? " ●" : ""}</button>
+           <button className="btn-ghost" onClick={() => setShowTheme((s) => !s)} title="为报表导入配色和字体样式">报表样式{theme.name ? " ●" : ""}</button>
           {showTheme && (
             <div className="report-modal" style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 70, width: 292, background: "var(--paper-bright)", border: "1px solid var(--ink)", boxShadow: "var(--shadow-2)", padding: "10px 12px", fontSize: 12.5, color: "var(--ink)" }}>
               <div style={{ display: "flex", alignItems: "center", marginBottom: 6 }}>
-                <strong style={{ fontFamily: "var(--f-display)", fontSize: 13 }}>Report theme</strong>
+                 <strong style={{ fontFamily: "var(--f-display)", fontSize: 13 }}>报表样式</strong>
                 <div style={{ flex: 1 }} />
-                <button onClick={() => setShowTheme(false)} title="Close"
+                <button onClick={() => setShowTheme(false)} title="关闭"
                   style={{ border: "none", background: "transparent", color: "var(--ink-muted)", cursor: "pointer", fontSize: 13, padding: 0, lineHeight: 1 }}>✕</button>
               </div>
               <div style={{ fontSize: 11, color: "var(--ink-muted)", lineHeight: 1.5, marginBottom: 8 }}>
-                Import a design-token file (e.g. a Claude Design <code>tokens.json</code>) to reskin this report — palette and fonts only. Your company identity stays where it is.
+                 导入设计令牌文件（如 <code>tokens.json</code>）可更改报表配色和字体，不影响公司信息。
               </div>
               {theme.name ? (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
@@ -567,14 +571,14 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
                   <div style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }} title={theme.name}>{theme.name}</div>
                 </div>
               ) : (
-                <div style={{ fontSize: 11.5, color: "var(--ink-muted)", marginBottom: 8 }}>Using the default house style.</div>
+                 <div style={{ fontSize: 11.5, color: "var(--ink-muted)", marginBottom: 8 }}>当前使用默认样式。</div>
               )}
               <div style={{ display: "flex", gap: 6 }}>
-                <button onClick={() => themeFileRef.current?.click()} title="Choose a design-token file to import"
-                  style={{ flex: 1, padding: "5px 8px", border: "1px solid var(--ink)", background: "var(--ink)", color: "var(--paper-bright)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Import theme…</button>
+                 <button onClick={() => themeFileRef.current?.click()} title="选择设计令牌文件"
+                   style={{ flex: 1, padding: "5px 8px", border: "1px solid var(--ink)", background: "var(--ink)", color: "var(--paper-bright)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>导入样式…</button>
                 {theme.name && (
-                  <button onClick={resetTheme} title="Remove the imported theme and return to the default"
-                    style={{ padding: "5px 10px", border: "1px solid var(--ink-faint)", background: "transparent", color: "var(--cobalt)", cursor: "pointer", fontSize: 12 }}>Reset</button>
+                   <button onClick={resetTheme} title="移除导入样式并恢复默认"
+                    style={{ padding: "5px 10px", border: "1px solid var(--ink-faint)", background: "transparent", color: "var(--cobalt)", cursor: "pointer", fontSize: 12 }}>重置</button>
                 )}
               </div>
               {theme.warnings.length > 0 && (
@@ -592,53 +596,53 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
             Every item keeps the exact disabled condition + tooltip its button
             carried. RFI exports stay their own controls, shown only when RFIs exist. */}
         <ToolMenu
-          title="Download the report and shape data"
+           title="下载报表和测量数据"
           disabled={!rows.length && !shapes.length && !markups.length && !rfis.length}
-          face={<><Icon name="document" size={13} />Export</>}
+          face={<><Icon name="document" size={13} />导出</>}
           items={[
-            { section: "Report" },
+            { section: "工程量报表" },
             { id: "csv", icon: "document", label: "CSV", disabled: !rows.length, onSelect: exportCsv },
-            { id: "xlsx", icon: "document", label: "Excel", disabled: !rows.length, title: "Excel workbook — Conditions / By sheet / Materials / Shapes", onSelect: exportXlsx },
-            { id: "json", icon: "document", label: "JSON", disabled: !rows.length && !markups.length && !rfis.length, title: "JSON — works markups-only / RFI-only too", onSelect: exportJson },
-            { section: "Shapes" },
-            { id: "shapes-csv", icon: "document", label: "Shapes CSV", disabled: !shapes.length, title: "Per-shape measured quantities — no multiplier, no waste", onSelect: exportShapesCsv },
-            { id: "shapes-json", icon: "document", label: "Shapes JSON", disabled: !shapes.length, title: "Per-shape measured quantities — no multiplier, no waste", onSelect: exportShapesJson },
-            { id: "dxf", icon: "document", label: dxfSheets.length > 1 ? `DXF (CAD) · ${dxfSheets.length} sheets` : "DXF (CAD)", disabled: !dxfSheets.length,
-              title: !shapes.length ? "Nothing measured yet"
-                : !dxfSheets.length ? "Set the scale on a sheet with shapes first — a CAD file in pixels is worse than none"
-                : `AutoCAD-ready geometry: closed polylines per finish on OT-<TAG> layers, ${units === "metric" ? "metres" : "feet"}, one drawing per sheet${dxfSkipped.length ? ` — ${dxfSkipped.length} unscaled sheet${dxfSkipped.length > 1 ? "s" : ""} left out` : ""}`,
+             { id: "xlsx", icon: "document", label: "Excel", disabled: !rows.length, title: "含饰面、分图纸、材料和测量明细的工作簿", onSelect: exportXlsx },
+             { id: "json", icon: "document", label: "JSON", disabled: !rows.length && !markups.length && !rfis.length, title: "结构化数据；仅有批注或 RFI 时也可导出", onSelect: exportJson },
+             { section: "测量明细" },
+             { id: "shapes-csv", icon: "document", label: "测量明细 CSV", disabled: !shapes.length, title: "逐项实测量，不含系数和损耗", onSelect: exportShapesCsv },
+             { id: "shapes-json", icon: "document", label: "测量明细 JSON", disabled: !shapes.length, title: "逐项实测量，不含系数和损耗", onSelect: exportShapesJson },
+             { id: "dxf", icon: "document", label: dxfSheets.length > 1 ? `DXF (CAD) · ${dxfSheets.length} 张图纸` : "DXF (CAD)", disabled: !dxfSheets.length,
+               title: !shapes.length ? "尚无测量记录"
+                 : !dxfSheets.length ? "请先为有测量记录的图纸设置比例尺，再导出 CAD 文件"
+                 : `按饰面生成封闭多段线，单位为${units === "metric" ? "米" : "英尺"}，每张图纸一个文件${dxfSkipped.length ? `；已跳过 ${dxfSkipped.length} 张未校准图纸` : ""}`,
               onSelect: exportDxf },
           ]}
         />
         <ToolMenu
-          title="Print the report, or generate the marked-set PDF"
+           title="打印报表或生成标注图纸 PDF"
           disabled={!rows.length && !markups.length && !rfis.length /* both items are disabled exactly here: with no rows/rfis, the marked-set condition also collapses to true */}
-          face={<span>Print</span>}
+          face={<span>打印</span>}
           items={[
-            { id: "print", label: "Print report", disabled: !rows.length && !markups.length && !rfis.length, title: "Print the on-screen report (browser print / save as PDF)", onSelect: () => window.print() },
+             { id: "print", label: "打印报表", disabled: !rows.length && !markups.length && !rfis.length, title: "使用浏览器打印或另存为 PDF", onSelect: () => window.print() },
             ...(onMarkedSet ? [
               "divider",
-              { section: "Marked set" },
-              ...(markups.length > 0 ? [{ id: "inc-markups", label: "Include markups", checked: includeMarkups, stayOpen: true, title: "Include your markups (clouds, callouts, notes, highlights) in the Marked Set PDF. Independent of the canvas layer toggle.", onSelect: () => setIncludeMarkups((v) => !v) }] : []),
-              { id: "marked-set", icon: "document", label: `Download marked set${markedSetDark ? " ☾" : ""}`, disabled: !rows.length && (!includeMarkups || !markups.length) && !rfis.length, title: `Distribution PDF — marked sheets with the takeoff burned in, plus a legend cover${markedSetDark ? " (dark, following your view)" : ""}`, onSelect: () => onMarkedSet(includeMarkups) },
+               { section: "标注图纸" },
+               ...(markups.length > 0 ? [{ id: "inc-markups", label: "包含批注", checked: includeMarkups, stayOpen: true, title: "将云线、引线、备注和高亮纳入 PDF；与画布图层开关互不影响", onSelect: () => setIncludeMarkups((v) => !v) }] : []),
+               { id: "marked-set", icon: "document", label: `下载标注图纸${markedSetDark ? " ☾" : ""}`, disabled: !rows.length && (!includeMarkups || !markups.length) && !rfis.length, title: `导出含测量标记和图例封面的 PDF${markedSetDark ? "（深色模式）" : ""}`, onSelect: () => onMarkedSet(includeMarkups) },
             ] : []),
           ]}
         />
         {rfis.length > 0 && (
           <>
             <button className="btn-ghost" onClick={exportRfisCsv}
-              title="RFI log — one row per RFI with linked markups/sheets derived"><Icon name="rfi" size={13} />RFI CSV</button>
+               title="导出 RFI 问题记录及关联的批注、图纸"><Icon name="rfi" size={13} />RFI CSV</button>
             <button className="btn-ghost" onClick={exportRfisJson}
-              title="RFI log as JSON"><Icon name="rfi" size={13} />RFI JSON</button>
+               title="将 RFI 问题记录导出为 JSON"><Icon name="rfi" size={13} />RFI JSON</button>
           </>
         )}
         <button className="btn-primary" onClick={() => setShowContribute(true)} disabled={!rows.length}
-          title="Optionally contribute this takeoff's derived data to the open flooring model">
-          <Icon name="oneClick" size={13} />Contribute
+           title="自愿向开放地面材料模型贡献衍生算量数据">
+          <Icon name="oneClick" size={13} />贡献数据
         </button>
-        <button onClick={onClose} title="Back to the canvas (Esc)"
+         <button onClick={onClose} title="返回图纸画布（Esc）"
           style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", border: "1px solid var(--ink-faint)", background: "transparent", color: "var(--ink)", cursor: "pointer", fontSize: 12.5 }}>
-          <Icon name="close" size={12} />Close
+          <Icon name="close" size={12} />关闭
         </button>
       </div>
 
@@ -647,7 +651,7 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
             the top of every printed page (screen hides it) — a fixed footer would
             overlap the last row of intermediate pages */}
         <table className="report-flow"><thead><tr><td>
-          {projectName || "Untitled project"} — {DISCLAIMER}
+           {projectName || "未命名项目"} — {DISCLAIMER}
         </td></tr></thead><tbody><tr><td>
         {/* print-only masthead — hidden on screen via app.css. Title-block header
             (logo/firm row · project title · bordered fact grid), the drafting-
@@ -673,19 +677,19 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
                 <div style={{ fontFamily: "var(--f-display)", fontWeight: 700, fontSize: 12.5, lineHeight: 1.15 }}>{brand.brandName}</div>
               )}
             </div>
-            <div style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--ink-muted)", whiteSpace: "nowrap" }}>Takeoff Report</div>
+             <div style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--ink-muted)", whiteSpace: "nowrap" }}>工程量报表</div>
           </div>
 
           {/* project title */}
-          <div style={{ fontFamily: "var(--f-display)", fontSize: 25, fontWeight: 700, letterSpacing: "0.005em", textTransform: "uppercase", lineHeight: 0.98, margin: "11px 0 9px" }}>{projectName || "Untitled project"}</div>
+           <div style={{ fontFamily: "var(--f-display)", fontSize: 25, fontWeight: 700, letterSpacing: "0.005em", textTransform: "uppercase", lineHeight: 0.98, margin: "11px 0 9px" }}>{projectName || "未命名项目"}</div>
 
           {/* title-block fact grid */}
           {(() => {
             const cells = [
-              ["Client", clientInfo.client_name],
-              ["Reference", clientInfo.reference],
-              ["Date", clientInfo.date || new Date().toLocaleDateString()],
-              ["Prepared by", brand.brandName],
+               ["客户", clientInfo.client_name],
+               ["项目编号", clientInfo.reference],
+               ["日期", clientInfo.date || new Date().toLocaleDateString("zh-CN")],
+               ["编制单位", brand.brandName],
             ];
             return (
               <div style={{ display: "grid", gridTemplateColumns: `repeat(${cells.length}, 1fr)`, border: "1px solid var(--ink)", marginBottom: hasClient && clientInfo.client_address ? 8 : 12 }}>
@@ -707,9 +711,9 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
           {/* meta footer: scale provenance · attribution · disclaimer */}
           <div style={{ fontFamily: "var(--f-mono)", fontSize: 10, color: "var(--ink-muted)", lineHeight: 1.6, borderTop: "1px solid var(--ink-faint)", paddingTop: 6, marginBottom: 12 }}>
             {scaleInfo.map((si) => (
-              <div key={si.sheet_id}>{sheetLabel ? sheetLabel(si.sheet_id) : si.sheet_id} — {!si.scale_source || si.scale_source === "unknown" ? "scale set — provenance unrecorded" : si.scale_source}{si.scale_confirmed === false ? <span style={{ color: "var(--c-warning)", fontWeight: 700 }}> · agent-set, UNCONFIRMED</span> : null}</div>
+               <div key={si.sheet_id}>{sheetLabel ? sheetLabel(si.sheet_id) : si.sheet_id} — {!si.scale_source || si.scale_source === "unknown" ? "已设置比例尺，来源未记录" : si.scale_source}{si.scale_confirmed === false ? <span style={{ color: "var(--c-warning)", fontWeight: 700 }}> · 自动设置，待人工确认</span> : null}</div>
             ))}
-            <div>Generated {new Date().toLocaleDateString()}</div>
+             <div>生成日期：{new Date().toLocaleDateString("zh-CN")}</div>
             <div>{DISCLAIMER}</div>
           </div>
         </div>
@@ -719,7 +723,7 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
         {!rows.length ? (
           markups.length ? null : (
             <div style={{ padding: 48, textAlign: "center", color: "var(--ink-muted)" }}>
-              Nothing measured yet — trace some areas, then come back for the breakdown.
+               尚无测量记录。请先在图纸上绘制测量区域，再查看汇总。
             </div>
           )
         ) : (
@@ -731,7 +735,7 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
               the partition degenerates to one group. */}
           {grouped && (
             <p style={{ maxWidth: 980, margin: "0 auto 8px", fontSize: 11.5, color: "var(--ink-muted)" }}>
-              Grouped by <strong>{groupCol ? columnLabel(groupCol) : groupBy === "label" ? "label" : groupBy === "author" ? "author" : "sheet"}</strong>
+               分组依据：<strong>{groupCol ? columnLabel(groupCol) : groupBy === "label" ? "标签" : groupBy === "author" ? "作者" : "图纸"}</strong>
             </p>
           )}
           <table style={{ width: "100%", maxWidth: 980, margin: "0 auto", borderCollapse: "collapse", background: "var(--paper-bright)", border: "1px solid var(--ink-faint)" }}>
@@ -739,7 +743,7 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
               <tr>
                 {tableCols.map((c) => (
                   // custom, spec, and labor columns are text — header left-aligns with the cells
-                  <th key={c.key} style={c.key === "finish" || c.custom || c.spec || c.labor ? { ...th, textAlign: "left" } : c.accent ? { ...th, color: "var(--cobalt)" } : th}>{c.header}</th>
+                  <th key={c.key} style={c.key === "finish" || c.custom || c.spec || c.labor ? { ...th, textAlign: "left" } : c.accent ? { ...th, color: "var(--cobalt)" } : th}>{zhHeader(c.header)}</th>
                 ))}
               </tr>
             </thead>
@@ -777,7 +781,7 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
                   {/* single-row group: no subtotal — it would repeat the row verbatim */}
                   {sub && (
                     <tr>
-                      <td style={{ ...td, textAlign: "left", borderTop: "1px solid var(--ink-soft)", color: "var(--ink-muted)", fontWeight: 600 }}>Subtotal</td>
+                       <td style={{ ...td, textAlign: "left", borderTop: "1px solid var(--ink-soft)", color: "var(--ink-muted)", fontWeight: 600 }}>小计</td>
                       {/* lighter than the grand-total tfoot: thin border,
                           muted color; same foot mechanism on the group's
                           own grandTotals */}
@@ -793,7 +797,7 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
             })}
             <tfoot>
               <tr>
-                <td style={{ ...td, textAlign: "left", borderTop: "2px solid var(--ink)", borderBottom: "2px solid var(--ink)", background: "var(--paper-cream)", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: "var(--f-mono)" }}>Total</td>
+                <td style={{ ...td, textAlign: "left", borderTop: "2px solid var(--ink)", borderBottom: "2px solid var(--ink)", background: "var(--paper-cream)", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: "var(--f-mono)" }}>合计</td>
                 {/* finish is always first & locked; every other visible column gets its
                     own td — footed columns render foot(g), ref columns never foot */}
                 {tableCols.slice(1).map((c) => (
@@ -810,33 +814,32 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
         )}
         {rows.length > 0 && (
           <p style={{ maxWidth: 980, margin: "14px auto 0", fontSize: 11.5, color: "var(--ink-muted)", lineHeight: 1.6 }}>
-            <strong>{AU} w/Waste</strong> = measured quantity × waste %. Waste is set per condition in the canvas. Wall {AU} comes from Surface-Area
-            traces (run × height); Border {AU} from Linear runs with a thickness.{M ? " Supporting-material coverage rates stay as entered (SF/LF-based)." : ""}
+            <strong>含损耗量（{AU}）</strong> = 测量量 ×（1 + 损耗率）。墙面面积按长度 × 高度计算；边带面积按长度 × 宽度计算。辅助材料覆盖率仍按原输入的 SF/LF 基准使用，请核对后采购。
             {tableCols.some((c) => c.key === "perimeter_ref") && (
-              <> Perim {LU} (ref) sums floor-trace perimeters — includes door openings and shared walls; reference only, never totaled or waste-adjusted.</>
+               <> 周长（{LU}）汇总地面测量轮廓，包含门洞和共用墙；仅供参考，不计入合计或损耗。</>
             )}
             {/* bridge to the base-quantity By-sheet section below — the two
                 slice the same shapes with different semantics */}
             {groupBy === "sheet" && grouped && (
-              <> Groups show w/Waste quantities (waste and ×N applied per sheet); the By-sheet section below shows base measured quantities.</>
+               <> 上方分组已计入损耗和系数 ×N；下方按图纸显示基础实测量。</>
             )}
           </p>
         )}
         {rows.length > 0 && bySheet.length > 0 && (
           <div style={{ maxWidth: 980, margin: "26px auto 0" }}>
-            <h3 style={{ fontFamily: "var(--f-display)", fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--ink)", margin: "0 0 10px", paddingBottom: 5, borderBottom: "1.25px solid var(--ink)" }}>By sheet</h3>
+            <h3 style={{ fontFamily: "var(--f-display)", fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--ink)", margin: "0 0 10px", paddingBottom: 5, borderBottom: "1.25px solid var(--ink)" }}>按图纸</h3>
             {bySheet.map((gp) => (
               <div key={gp.sheet_id} style={{ margin: "0 0 14px" }}>
                 <h3 style={{ fontFamily: "var(--f-mono)", fontSize: 11, letterSpacing: "0.06em", color: "var(--ink-muted)", margin: "0 0 6px" }}>{sheetLabel ? sheetLabel(gp.sheet_id) : gp.sheet_id}</h3>
                 <table style={{ width: "100%", borderCollapse: "collapse", background: "var(--paper-bright)", border: "1px solid var(--ink-faint)" }}>
                   <thead>
                     <tr>
-                      <th style={{ ...th, textAlign: "left" }}>Finish</th>
-                      <th style={th}>Floor {AU}</th>
-                      <th style={th}>Wall {AU}</th>
-                      <th style={th}>Border {AU}</th>
+                      <th style={{ ...th, textAlign: "left" }}>饰面</th>
+                       <th style={th}>地面 {AU}</th>
+                       <th style={th}>墙面 {AU}</th>
+                       <th style={th}>边带 {AU}</th>
                       <th style={th}>{LU}</th>
-                      <th style={th}>EA</th>
+                       <th style={th}>数量</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -861,10 +864,10 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
               </div>
             ))}
             <p style={{ margin: "10px auto 0", fontSize: 11.5, color: "var(--ink-muted)", lineHeight: 1.6 }}>
-              Base quantities as measured per sheet — waste not applied.
+              按图纸统计的基础测量量，不含损耗。
               {hasMultipliers(bySheet) && (
                 // the shared note + a screen-only reconcile clause (CSV/PDF omit it)
-                <> {BY_SHEET_BASE_NOTE} — sheet subtotals × multiplier reconcile to the condition table.</>
+                 <> 各图纸实测量乘以对应系数后，可与饰面汇总表核对。</>
               )}
             </p>
           </div>
@@ -872,13 +875,13 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
         {markups.some((m) => m.type !== "svg" && m.type !== "image") && (
           <div style={{ maxWidth: 980, margin: "26px auto 0" }}>
             {/* svg symbols and image markups aren't revision notes — excluded */}
-            <h3 style={{ fontFamily: "var(--f-display)", fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--ink)", margin: "0 0 10px", paddingBottom: 5, borderBottom: "1.25px solid var(--ink)" }}>Revisions noted</h3>
+             <h3 style={{ fontFamily: "var(--f-display)", fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--ink)", margin: "0 0 10px", paddingBottom: 5, borderBottom: "1.25px solid var(--ink)" }}>修订与批注</h3>
             <table style={{ width: "100%", borderCollapse: "collapse", background: "var(--paper-bright)", border: "1px solid var(--ink-faint)" }}>
               <thead>
                 <tr>
-                  <th style={{ ...th, textAlign: "left" }}>Type</th>
-                  <th style={{ ...th, textAlign: "left" }}>Sheet</th>
-                  <th style={{ ...th, textAlign: "left" }}>Note</th>
+                   <th style={{ ...th, textAlign: "left" }}>类型</th>
+                  <th style={{ ...th, textAlign: "left" }}>图纸</th>
+                   <th style={{ ...th, textAlign: "left" }}>备注</th>
                 </tr>
               </thead>
               <tbody>
@@ -886,7 +889,7 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
                   <tr key={m.id}>
                     <td style={{ ...td, textAlign: "left" }}>
                       <span style={{ fontFamily: "var(--f-mono)", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", border: "1px solid var(--ink-faint)", padding: "1px 6px", color: "var(--ink-soft)" }}>
-                        {m.type === "cloud" ? "CLOUD" : m.type === "callout" ? "CALLOUT" : "NOTE"}
+                         {m.type === "cloud" ? "云线" : m.type === "callout" ? "引线" : "备注"}
                       </span>
                     </td>
                     <td style={{ ...td, textAlign: "left", fontFamily: "var(--f-mono)", fontSize: 11.5 }}>{sheetLabel ? sheetLabel(m.sheet_id) : m.sheet_id}</td>
@@ -896,19 +899,19 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
               </tbody>
             </table>
             <p style={{ margin: "10px auto 0", fontSize: 11.5, color: "var(--ink-muted)", lineHeight: 1.6 }}>
-              Markups are annotations, not measurements — quantities above are unaffected.
+               批注仅用于说明，不计入上述工程量。
             </p>
           </div>
         )}
         {matSummary.length > 0 && (
           <div style={{ maxWidth: 980, margin: "26px auto 0" }}>
-            <h3 style={{ fontFamily: "var(--f-display)", fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--ink)", margin: "0 0 10px", paddingBottom: 5, borderBottom: "1.25px solid var(--ink)" }}>Supporting materials — buy list</h3>
+            <h3 style={{ fontFamily: "var(--f-display)", fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--ink)", margin: "0 0 10px", paddingBottom: 5, borderBottom: "1.25px solid var(--ink)" }}>辅助材料 — 采购清单</h3>
             <table style={{ width: "100%", borderCollapse: "collapse", background: "var(--paper-bright)", border: "1px solid var(--ink-faint)" }}>
               <thead>
                 <tr>
-                  <th style={{ ...th, textAlign: "left" }}>Material</th>
-                  <th style={th}>Quantity</th>
-                  <th style={{ ...th, textAlign: "left", paddingLeft: 16 }}>Unit</th>
+                  <th style={{ ...th, textAlign: "left" }}>材料</th>
+                  <th style={th}>数量</th>
+                  <th style={{ ...th, textAlign: "left", paddingLeft: 16 }}>单位</th>
                 </tr>
               </thead>
               <tbody>
@@ -922,7 +925,7 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
               </tbody>
             </table>
             <p style={{ maxWidth: 980, margin: "10px auto 0", fontSize: 11.5, color: "var(--ink-muted)", lineHeight: 1.7 }}>
-              <strong>By finish:</strong>{" "}
+               <strong>按饰面：</strong>{" "}
               {rows.filter((r) => r.materials?.length).map((r) => (
                 // inline-block + a trailing space outside the span: each finish
                 // moves to the next line as a unit when it fits, and wraps
@@ -935,7 +938,7 @@ export default function ReportPanel({ projectName, onProjectName, conditions, sh
                   </span>{" "}
                 </React.Fragment>
               ))}
-              <br />Each quantity = measured {`{area / linear / count}`} ÷ your coverage rate, rounded up to whole units.
+               <br />材料数量 = 实测量（面积、长度或件数）÷ 输入的覆盖率，并向上取整。
             </p>
           </div>
         )}
@@ -1050,60 +1053,60 @@ function ProjectInfoModal({ clientInfo = {}, onClientInfo, onSaved, onClose }) {
       <div onClick={(e) => e.stopPropagation()} className="panel" style={{ width: 520, maxWidth: "100%", maxHeight: "90%", overflow: "auto", background: "var(--paper-bright)", boxShadow: "var(--shadow-2)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: "1px solid var(--ink)" }}>
           <Icon name="document" size={16} />
-          <strong style={{ fontFamily: "var(--f-display)", fontSize: 15 }}>Project info</strong>
+          <strong style={{ fontFamily: "var(--f-display)", fontSize: 15 }}>项目信息</strong>
         </div>
         <div style={{ padding: 16, fontSize: 13, lineHeight: 1.6, color: "var(--ink)" }}>
-          <div style={section}>Company — your trade names, saved on this device</div>
+          <div style={section}>公司名称（保存在本机）</div>
           {/* trade-name picker: choose which identity prints on the report + marked-set */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "8px 0" }}>
-            <select name="trade-name" aria-label="Active trade name" value={profs.activeId || ""} onChange={(e) => switchProfile(e.target.value)}
+            <select name="trade-name" aria-label="当前公司名称" value={profs.activeId || ""} onChange={(e) => switchProfile(e.target.value)}
               className="field-input" style={{ flex: 1, minWidth: 0 }} disabled={!profs.profiles.length}>
-              {profs.profiles.length === 0 && <option value="">No trade name yet — add one</option>}
-              {profs.profiles.map((p) => <option key={p.id} value={p.id}>{p.name || "Untitled trade name"}</option>)}
+              {profs.profiles.length === 0 && <option value="">尚无公司名称，请先添加</option>}
+              {profs.profiles.map((p) => <option key={p.id} value={p.id}>{p.name || "未命名公司"}</option>)}
             </select>
-            <button onClick={addTradeName} className="btn-ghost" title="Add another trade name (e.g. a second brand)"
-              style={{ padding: "5px 10px", whiteSpace: "nowrap" }}>+ Add</button>
+            <button onClick={addTradeName} className="btn-ghost" title="添加另一个公司或品牌名称"
+              style={{ padding: "5px 10px", whiteSpace: "nowrap" }}>+ 添加</button>
             {profs.profiles.length > 1 && (
-              <button onClick={deleteActive} title="Delete the selected trade name"
-                style={{ padding: "5px 10px", border: "1px solid var(--ink-faint)", background: "transparent", color: "var(--c-danger)", cursor: "pointer", fontSize: 12, whiteSpace: "nowrap" }}>Delete</button>
+              <button onClick={deleteActive} title="删除当前公司名称"
+                style={{ padding: "5px 10px", border: "1px solid var(--ink-faint)", background: "transparent", color: "var(--c-danger)", cursor: "pointer", fontSize: 12, whiteSpace: "nowrap" }}>删除</button>
             )}
           </div>
           <label style={row}>
-            <span className="field-label">Name</span>
+            <span className="field-label">名称</span>
             <input name="company-name" autoComplete="organization" value={active.name || ""} onChange={(e) => editActive({ name: e.target.value })}
-              placeholder="Your trade name" className="field-input" style={{ marginTop: 4 }} />
+              placeholder="公司或工作室名称" className="field-input" style={{ marginTop: 4 }} />
           </label>
           <label style={row}>
-            <span className="field-label">Address</span>
+            <span className="field-label">地址</span>
             <textarea name="company-address" autoComplete="street-address" value={active.address || ""} onChange={(e) => editActive({ address: e.target.value })}
-              rows={2} placeholder={"Street\nCity, ST"} className="field-input" style={{ marginTop: 4, resize: "vertical" }} />
+              rows={2} placeholder={"详细地址\n城市、省份"} className="field-input" style={{ marginTop: 4, resize: "vertical" }} />
           </label>
           <div style={row}>
-            <span className="field-label">Logo</span>
+            <span className="field-label">标识</span>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
               <input name="company-logo" type="file" accept="image/*" onChange={onLogoFile} style={{ fontSize: 12, minWidth: 0 }} />
               {active.logo && (
                 <>
-                  <img src={active.logo} alt="Company logo" style={{ width: 120, height: "auto", flex: "none", border: "1px solid var(--ink-faint)", background: "var(--well)" }} />
+                  <img src={active.logo} alt="公司标识" style={{ width: 120, height: "auto", flex: "none", border: "1px solid var(--ink-faint)", background: "var(--well)" }} />
                   <button onClick={removeLogo}
-                    style={{ border: "none", background: "transparent", color: "var(--cobalt)", cursor: "pointer", fontSize: 11.5, padding: 0, whiteSpace: "nowrap" }}>Remove logo</button>
+                    style={{ border: "none", background: "transparent", color: "var(--cobalt)", cursor: "pointer", fontSize: 11.5, padding: 0, whiteSpace: "nowrap" }}>移除标识</button>
                 </>
               )}
             </div>
             {logoErr && <p style={err}>{logoErr}</p>}
           </div>
-          {saveFailed && <p style={err}>Couldn't save on this device</p>}
+          {saveFailed && <p style={err}>无法保存到当前设备</p>}
 
           {/* branding mode — per project. Off = OpenTakeoff (default); on brands
               the report + marked set as the selected trade name, keeping a subtle
               "Measured with OpenTakeoff" credit. Disabled until a trade name exists. */}
-          <div style={{ ...section, borderTop: "1px solid var(--ink-faint)", marginTop: 14, paddingTop: 12 }}>Branding — how this project's documents present</div>
+          <div style={{ ...section, borderTop: "1px solid var(--ink-faint)", marginTop: 14, paddingTop: 12 }}>报表署名</div>
           <label style={{ display: "flex", alignItems: "center", gap: 8, margin: "8px 0", cursor: profs.profiles.length ? "pointer" : "not-allowed", opacity: profs.profiles.length ? 1 : 0.6 }}>
             <input type="checkbox" name="trade-name-brand" checked={brandSel.mode === "clearlabel"} disabled={!profs.profiles.length}
               onChange={(e) => setBranding({ mode: e.target.checked ? "clearlabel" : "default" })} />
             <span style={{ fontSize: 12.5 }}>
-              Trade name — brand as your company
-              {!profs.profiles.length && <span style={{ color: "var(--ink-muted)" }}> (add a trade name first)</span>}
+              以所选公司名称作为报表署名
+              {!profs.profiles.length && <span style={{ color: "var(--ink-muted)" }}>（请先添加公司名称）</span>}
             </span>
           </label>
           {brandSel.mode === "clearlabel" && profs.profiles.length > 1 && (
@@ -1111,41 +1114,41 @@ function ProjectInfoModal({ clientInfo = {}, onClientInfo, onSaved, onClose }) {
               {profs.profiles.map((p) => {
                 const on = brandProfileId === p.id;
                 return (
-                  <button key={p.id} onClick={() => setBranding({ profileId: p.id })} title="Brand this project as this trade name"
+                  <button key={p.id} onClick={() => setBranding({ profileId: p.id })} title="以此名称为项目报表署名"
                     style={{ padding: "4px 10px", fontSize: 12, cursor: "pointer",
                       border: `1px solid ${on ? "var(--cobalt)" : "var(--ink-faint)"}`,
                       background: on ? "var(--cobalt)" : "transparent", color: on ? "var(--paper-bright)" : "var(--ink)" }}>
-                    {p.name || "Untitled trade name"}
+                    {p.name || "未命名公司"}
                   </button>
                 );
               })}
             </div>
           )}
 
-          <div style={{ ...section, borderTop: "1px solid var(--ink-faint)", marginTop: 14, paddingTop: 12 }}>Client / job — saved with this project</div>
+          <div style={{ ...section, borderTop: "1px solid var(--ink-faint)", marginTop: 14, paddingTop: 12 }}>客户及项目资料（随项目保存）</div>
           <label style={row}>
-            <span className="field-label">Client name</span>
+            <span className="field-label">客户名称</span>
             <input name="client-name" autoComplete="off" value={clientInfo.client_name || ""} onChange={client("client_name")} className="field-input" style={{ marginTop: 4 }} />
           </label>
           <label style={row}>
-            <span className="field-label">Client address</span>
+            <span className="field-label">客户地址</span>
             <textarea name="client-address" autoComplete="off" value={clientInfo.client_address || ""} onChange={client("client_address")} rows={2}
               className="field-input" style={{ marginTop: 4, resize: "vertical" }} />
           </label>
           <div style={{ display: "flex", gap: 12 }}>
             <label style={{ ...row, flex: 1 }}>
-              <span className="field-label">PO / reference</span>
+              <span className="field-label">采购单／项目编号</span>
               <input name="client-reference" autoComplete="off" value={clientInfo.reference || ""} onChange={client("reference")} className="field-input" style={{ marginTop: 4 }} />
             </label>
             <label style={{ ...row, flex: 1 }}>
-              <span className="field-label">Date</span>
-              <input name="client-date" autoComplete="off" value={clientInfo.date || ""} onChange={client("date")} placeholder={'e.g. "Bid 7/12"'}
+              <span className="field-label">日期</span>
+              <input name="client-date" autoComplete="off" value={clientInfo.date || ""} onChange={client("date")} placeholder="例如：2026-09-28"
                 className="field-input" style={{ marginTop: 4 }} />
             </label>
           </div>
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", padding: "12px 16px", borderTop: "1px solid var(--ink-faint)" }}>
-          <button className="btn-primary" onClick={onClose}>Done</button>
+          <button className="btn-primary" onClick={onClose}>完成</button>
         </div>
       </div>
     </div>
@@ -1164,7 +1167,7 @@ function ContributeModal({ conditions, shapes, scaleInfo = [], provenanceCounter
     setState("sending"); setMsg("");
     try {
       await sendContribution(buildContribution({ conditions, shapes, scaleInfo, counters: provenanceCounters }), contributor.trim());
-      setState("done"); setMsg("Thank you — your takeoff is now helping train the open flooring model.");
+      setState("done"); setMsg("提交成功。感谢你为开放地面材料模型提供数据。");
     } catch (e) {
       setState("error"); setMsg(e.message || String(e));
     }
@@ -1175,39 +1178,39 @@ function ContributeModal({ conditions, shapes, scaleInfo = [], provenanceCounter
       <div onClick={(e) => e.stopPropagation()} className="panel" style={{ width: 520, maxWidth: "100%", maxHeight: "90%", overflow: "auto", background: "var(--paper-bright)", boxShadow: "var(--shadow-2)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: "1px solid var(--ink)" }}>
           <Icon name="oneClick" size={16} />
-          <strong style={{ fontFamily: "var(--f-display)", fontSize: 15 }}>Contribute to the open flooring model</strong>
+          <strong style={{ fontFamily: "var(--f-display)", fontSize: 15 }}>贡献衍生算量数据</strong>
         </div>
         <div style={{ padding: "16px", fontSize: 13, lineHeight: 1.6, color: "var(--ink)" }}>
-          <p style={{ marginTop: 0 }}>Help grow a shared, flooring-tuned open model. We send only the <strong>derived takeoff</strong>:</p>
+          <p style={{ marginTop: 0 }}>此操作自愿向配置的开放地面材料模型服务发送<strong>衍生算量数据</strong>，包括：</p>
           <ul style={{ margin: "0 0 10px", paddingLeft: 18 }}>
-            <li>condition labels, shape types, and quantities (SF / LF / EA)</li>
-            <li>normalized room geometry (shape only — no scale, no location)</li>
-            <li>how each shape was made (hand-traced vs. machine-proposed) and whether you corrected it</li>
+            <li>饰面标签、图形类型与工程量（SF / LF / EA）</li>
+            <li>归一化的空间轮廓（不含比例尺或地理位置）</li>
+            <li>人工绘制或机器建议的来源，以及是否经过修正</li>
           </ul>
           <p style={{ margin: "0 0 10px", color: "var(--c-positive)", fontWeight: 600 }}>
-            Never sent: the PDF itself, file names, project or client names, your markups, or any absolute coordinates.
+            不发送 PDF 原件、文件名、项目及客户名称、批注或绝对坐标。请检查自行填写的饰面标签，避免其中包含敏感信息。
           </p>
           {!configured && (
             <p style={{ background: "var(--paper-shadow)", padding: "8px 10px", fontSize: 12.5, color: "var(--ink)" }}>
-              This build has no contribution endpoint configured, so nothing can be sent. (Set <code>VITE_CONTRIBUTE_ENDPOINT</code> at build time, or
-              <code> localStorage.opentakeoff_contribute_endpoint</code> in your browser.)
+              当前版本未配置数据接收地址，无法发送。开发者可在构建时设置 <code>VITE_CONTRIBUTE_ENDPOINT</code>，或在浏览器中设置
+              <code> localStorage.opentakeoff_contribute_endpoint</code>。
             </p>
           )}
           <label style={{ display: "block", margin: "6px 0" }}>
-            <span className="field-label">Credit (optional)</span>
-            <input name="contributor" autoComplete="name" value={contributor} onChange={(e) => setContributor(e.target.value)} placeholder="Name or company to credit"
+            <span className="field-label">署名（选填）</span>
+            <input name="contributor" autoComplete="name" value={contributor} onChange={(e) => setContributor(e.target.value)} placeholder="姓名或公司名称"
               className="field-input" style={{ marginTop: 4 }} />
           </label>
           <label style={{ display: "flex", gap: 8, alignItems: "flex-start", margin: "12px 0", cursor: "pointer" }}>
             <input name="attest" type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} style={{ marginTop: 3 }} />
-            <span>I have the right to share this takeoff data and am contributing it to the open flooring model.</span>
+            <span>我有权分享这些算量数据，并同意将其提交给开放地面材料模型。</span>
           </label>
           {msg && <p style={{ fontSize: 12.5, color: state === "error" ? "var(--c-danger)" : "var(--c-positive)" }}>{msg}</p>}
         </div>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", padding: "12px 16px", borderTop: "1px solid var(--ink-faint)" }}>
-          <button className="btn-ghost" onClick={onClose}>{state === "done" ? "Close" : "Cancel"}</button>
+          <button className="btn-ghost" onClick={onClose}>{state === "done" ? "关闭" : "取消"}</button>
           <button className="btn-primary" onClick={send} disabled={!attest || !configured || state === "sending" || state === "done"}>
-            {state === "sending" ? "Sending…" : "Contribute"}
+            {state === "sending" ? "正在发送…" : "确认贡献"}
           </button>
         </div>
       </div>

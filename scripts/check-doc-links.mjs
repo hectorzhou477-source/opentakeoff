@@ -13,11 +13,13 @@
 //   reported and swallowed. Run it on a schedule or on pushes, not to gate PRs.
 //
 // No dependencies on purpose: node:fs and a regex are the whole machine.
+// Modified by Quantifin, 2026-09-28: resolve file URLs correctly on Windows.
 
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, dirname, resolve, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = resolve(dirname(new URL(import.meta.url).pathname), "..");
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const checkIssues = process.argv.includes("--issues");
 
 // The doc set from the issue: top-level READMEs (all languages), docs/, and

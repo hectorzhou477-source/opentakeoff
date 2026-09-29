@@ -1,3 +1,4 @@
+// Modified by Quantifin, 2026-09-28: Chinese editor UI.
 // PlanNavigator — the single, harmonized surface for choosing plans, merging the
 // former SheetGallery (working-set thumbnail grid) and DrivePicker (browse the
 // project's Drive folder) into ONE chrome with two modes: "plan" and "browse".
@@ -57,7 +58,7 @@ const ctrlBtn = { display: "inline-flex", alignItems: "center", gap: 6, padding:
 
 export default function PlanNavigator({
   // presentation + exit
-  canClose, onExit, onPremium, initialMode = "plan", cloudMode,
+  canClose, onExit, onPremium: _onPremium, initialMode = "plan", cloudMode,
   // plan-set (gallery) data
   sheets, getDoc, scales, detectedScales, scaleUnconfirmed = {}, shapes, labels, onLabel, onDetect,
   thumbCacheRef, busyRef, openTabs, onOpen,
@@ -474,12 +475,12 @@ export default function PlanNavigator({
   };
 
   // ══ RENDER ════════════════════════════════════════════════════════════════
-  const title = mode === "browse" ? "Add sheets from Drive" : mode === "manage" ? "Manage plan set" : "Plan set";
+  const title = mode === "browse" ? "Add sheets from Drive" : mode === "manage" ? "Manage plan set" : "图纸总览";
   const subtitle = mode === "browse"
     ? "pick the PDFs to open — specs & as-builts stay unopened"
     : mode === "manage"
       ? `${sheets.length} PDF${sheets.length === 1 ? "" : "s"} stored in this workspace — remove what this takeoff doesn't need`
-      : `${allKeys.length || "…"} sheets · pick one or several — the order you pick is the left-to-right order`;
+      : `${allKeys.length || "…"} 页图纸 · 支持多选，按选择顺序排列`;
 
   const header = (
     <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderBottom: "1px solid var(--ink)", background: "var(--paper-bright)", flexWrap: "wrap" }}>
@@ -515,48 +516,47 @@ export default function PlanNavigator({
       <div style={{ flex: 1 }} />
 
       {/* RIGHT: source toggle · browse filters · add plans · account */}
-      {onPremium && <button type="button" data-premium-trigger onClick={onPremium} style={{...ctrlBtn, color:"var(--cobalt)", borderColor:"var(--cobalt)"}}>Request Premium</button>}
       {browseEnabled && (
         <div style={{ display: "inline-flex", border: "1px solid var(--ink-faint)", borderRadius: 2, overflow: "hidden" }}>
-          <button onClick={() => setMode("plan")} style={{ ...ctrlBtn, border: "none", background: mode === "plan" ? "var(--ink)" : "transparent", color: mode === "plan" ? "var(--paper-bright)" : "var(--ink-muted)" }}>Plan set</button>
-          <button onClick={() => setMode("browse")} style={{ ...ctrlBtn, border: "none", background: mode === "browse" ? "var(--ink)" : "transparent", color: mode === "browse" ? "var(--paper-bright)" : "var(--ink-muted)" }}>Browse Drive</button>
+          <button onClick={() => setMode("plan")} style={{ ...ctrlBtn, border: "none", background: mode === "plan" ? "var(--ink)" : "transparent", color: mode === "plan" ? "var(--paper-bright)" : "var(--ink-muted)" }}>图纸总览</button>
+           <button onClick={() => setMode("browse")} style={{ ...ctrlBtn, border: "none", background: mode === "browse" ? "var(--ink)" : "transparent", color: mode === "browse" ? "var(--paper-bright)" : "var(--ink-muted)" }}>浏览 Drive</button>
         </div>
       )}
       {mode === "browse" && (
         <>
-          <input name="drive-filter" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter by name…"
+           <input name="drive-filter" value={q} onChange={(e) => setQ(e.target.value)} placeholder="按名称筛选…"
             style={{ padding: "6px 10px", border: "1px solid var(--ink-faint)", background: "var(--paper-bright)", fontSize: 12.5, minWidth: 140 }} />
-          <select name="drive-sort" value={sort} onChange={(e) => setSort(e.target.value)} title="Sort files"
+           <select name="drive-sort" value={sort} onChange={(e) => setSort(e.target.value)} title="排序文件"
             style={{ padding: "6px 8px", border: "1px solid var(--ink-faint)", background: "transparent", fontSize: 12 }}>
-            <option value="name">Name</option>
-            <option value="size">Size</option>
-            <option value="date">Modified</option>
+             <option value="name">名称</option>
+             <option value="size">大小</option>
+             <option value="date">修改时间</option>
           </select>
         </>
       )}
       {mode === "plan" && sheets.length > 0 && (onCloseMany || onClearWorkspace) && (
         <button onClick={() => { setMSel([]); setMode("manage"); }}
-          title="Manage the plan set — remove several PDFs at once, or clear the whole workspace"
+           title="管理图纸包：批量移除 PDF 或清空工作区"
           style={ctrlBtn}>
-          <Icon name="sheets" size={13} />Manage
+           <Icon name="sheets" size={13} />管理
         </button>
       )}
       {mode === "plan" && onAddFiles && (
         <div style={{ position: "relative" }}>
           <button onClick={() => (browseEnabled ? setAddMenu((v) => !v) : fileRef.current?.click())}
-            title="Add plans — from your computer or Google Drive"
+             title="从本机或 Google Drive 添加图纸"
             style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", border: "1px solid var(--ink)", background: "var(--ink)", color: "var(--paper-bright)", cursor: "pointer", fontWeight: 600, fontSize: 12.5 }}>
-            <Icon name="plus" size={13} />Add plans{browseEnabled && <Icon name="chevronDown" size={12} />}
+             <Icon name="plus" size={13} />添加图纸{browseEnabled && <Icon name="chevronDown" size={12} />}
           </button>
           {addMenu && browseEnabled && (
             <>
               <div onClick={() => setAddMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 1 }} />
               <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 2, minWidth: 210, background: "var(--paper-bright)", border: "1px solid var(--ink)", boxShadow: "var(--shadow-2)" }}>
                 <button onClick={() => { setAddMenu(false); fileRef.current?.click(); }} style={{ ...ctrlBtn, width: "100%", border: "none", borderBottom: "1px solid var(--ink-faint)", justifyContent: "flex-start", padding: "10px 12px" }}>
-                  <Icon name="document" size={14} />From this computer
+                   <Icon name="document" size={14} />从本机选择
                 </button>
                 <button onClick={() => { setAddMenu(false); setMode("browse"); }} style={{ ...ctrlBtn, width: "100%", border: "none", justifyContent: "flex-start", padding: "10px 12px" }}>
-                  <Icon name="cloud" size={14} />From Google Drive
+                   <Icon name="cloud" size={14} />从 Google Drive 选择
                 </button>
               </div>
             </>
@@ -569,11 +569,11 @@ export default function PlanNavigator({
       )}
       <AuthChip />
       {onCloseProject && (
-        <button onClick={onCloseProject} title="Close this project and return to the local canvas" style={{ ...ctrlBtn, color: "var(--ink-muted)" }}>Close project</button>
+         <button onClick={onCloseProject} title="关闭此项目并返回本地画布" style={{ ...ctrlBtn, color: "var(--ink-muted)" }}>关闭项目</button>
       )}
       {canClose && (
-        <button onClick={onExit} title="Back to the canvas (Esc)" style={ctrlBtn}>
-          <Icon name="close" size={12} />Close
+         <button onClick={onExit} title="返回画布（Esc）" style={ctrlBtn}>
+           <Icon name="close" size={12} />关闭
         </button>
       )}
     </div>
@@ -594,12 +594,12 @@ export default function PlanNavigator({
     <>
       <div style={{ flex: 1, overflow: "auto" }}>
         {bLoading ? (
-          <div style={{ padding: 40, textAlign: "center", color: "var(--ink-muted)", fontSize: 13 }}>Reading folder…</div>
+           <div style={{ padding: 40, textAlign: "center", color: "var(--ink-muted)", fontSize: 13 }}>正在读取文件夹…</div>
         ) : bErr ? (
-          <div style={{ padding: 40, textAlign: "center", color: "var(--c-danger)", fontSize: 13 }}>Couldn't read the folder: {bErr}</div>
+           <div style={{ padding: 40, textAlign: "center", color: "var(--c-danger)", fontSize: 13 }}>无法读取文件夹：{bErr}</div>
         ) : (folders.length === 0 && pdfs.length === 0) ? (
           <div style={{ padding: 40, textAlign: "center", color: "var(--ink-muted)", fontSize: 13 }}>
-            {needle ? "Nothing matches that filter." : "This folder has no PDFs or subfolders."}
+             {needle ? "没有匹配的文件。" : "此文件夹没有 PDF 或子文件夹。"}
           </div>
         ) : (
           <>
@@ -607,7 +607,7 @@ export default function PlanNavigator({
               <div key={f.id} onClick={() => drillInto(f)} style={{ ...rowBase, cursor: "pointer" }}>
                 <span style={{ fontSize: 15, width: 20, textAlign: "center", color: "var(--cobalt)" }}><Icon name="chevronRight" size={13} /></span>
                 <strong style={{ fontFamily: "var(--f-body)", fontSize: 13.5, color: "var(--ink)", flex: 1 }}>{f.name}</strong>
-                <span style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, color: "var(--ink-muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>folder</span>
+                 <span style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, color: "var(--ink-muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>文件夹</span>
               </div>
             ))}
             {pdfs.map((f) => {
@@ -618,14 +618,14 @@ export default function PlanNavigator({
               const tagStyle = { fontFamily: "var(--f-mono)", fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.08em", minWidth: 72, textAlign: "right" };
               return (
                 <label key={f.id} style={{ ...rowBase, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.6 : 1 }}
-                  title={conflict ? "Another selected PDF already uses this name — a project can't have two sheets with the same name" : undefined}>
+                   title={conflict ? "已有同名 PDF；同一项目不能包含两个同名文件" : undefined}>
                   <input name="drive-file-pick" type="checkbox" checked={selPick || inSet} disabled={disabled} onChange={() => togglePick(f)}
                     style={{ width: 16, height: 16, cursor: disabled ? "default" : "pointer" }} />
                   <span style={{ fontFamily: "var(--f-mono)", fontSize: 13, color: "var(--ink)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={f.name}>{f.name}</span>
                   <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, color: "var(--ink-muted)", minWidth: 64, textAlign: "right" }}>{fmtSize(f.size)}</span>
                   <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, color: "var(--ink-muted)", minWidth: 84, textAlign: "right" }}>{fmtDate(f.modifiedTime)}</span>
-                  {inSet ? <span style={{ ...tagStyle, color: "var(--c-positive)" }}>added</span>
-                    : conflict ? <span style={{ ...tagStyle, color: "var(--c-warning)" }}>name in use</span>
+                   {inSet ? <span style={{ ...tagStyle, color: "var(--c-positive)" }}>已添加</span>
+                     : conflict ? <span style={{ ...tagStyle, color: "var(--c-warning)" }}>名称重复</span>
                     : <span style={{ minWidth: 72 }} />}
                 </label>
               );
@@ -635,15 +635,15 @@ export default function PlanNavigator({
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderTop: "1px solid var(--ink)", background: "var(--paper-bright)" }}>
         <span style={{ fontFamily: "var(--f-mono)", fontSize: 11.5, color: "var(--ink-muted)" }}>
-          {picked.length ? `${picked.length} selected to open` : "check the PDFs you want to open — nothing downloads until you add them"}
+           {picked.length ? `已选择 ${picked.length} 个文件` : "勾选要打开的 PDF；点击添加后才会下载"}
         </span>
         <div style={{ flex: 1 }} />
         {picked.length > 0 && (
-          <button onClick={() => setPicked([])} style={{ padding: "7px 12px", border: "1px solid var(--ink-faint)", background: "transparent", color: "var(--ink-muted)", cursor: "pointer", fontSize: 12 }}>Clear</button>
+           <button onClick={() => setPicked([])} style={{ padding: "7px 12px", border: "1px solid var(--ink-faint)", background: "transparent", color: "var(--ink-muted)", cursor: "pointer", fontSize: 12 }}>清除选择</button>
         )}
         <button onClick={addPicked} disabled={!picked.length || adding}
           style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 16px", border: "1px solid var(--ink)", background: picked.length ? "var(--cobalt)" : "var(--text-faint)", color: "var(--paper-bright)", cursor: picked.length && !adding ? "pointer" : "default", fontWeight: 700, fontSize: 13 }}>
-          <Icon name="plus" size={13} />{adding ? "Adding…" : `Add ${picked.length || ""} sheet${picked.length === 1 ? "" : "s"}`}
+           <Icon name="plus" size={13} />{adding ? "正在添加…" : `添加 ${picked.length || 0} 张图纸`}
         </button>
       </div>
     </>
@@ -652,13 +652,13 @@ export default function PlanNavigator({
   // ── PLAN body + footer ──────────────────────────────────────────────────
   const planBody = (
     <>
-      <div className="sheet-preview-controls"><label>Page previews</label>{["medium", "large"].map(size => <button type="button" key={size} aria-pressed={previewSize === size} onClick={() => setPreviewSize(size)}>{size === "large" ? "Large" : "Medium"}</button>)}<span style={{ color: "var(--ink-muted)", fontSize: "var(--fs-s)" }}>Preview to inspect · View to open · Select cards for tabs or stitching</span></div>
+      <div className="sheet-preview-controls"><label>预览大小</label>{["medium", "large"].map(size => <button type="button" key={size} aria-pressed={previewSize === size} onClick={() => setPreviewSize(size)}>{size === "large" ? "大图" : "中图"}</button>)}<span style={{ color: "var(--ink-muted)", fontSize: "var(--fs-s)" }}>预览核对图纸 · 点击打开进入测量 · 多选可并排或拼接</span></div>
       <div ref={gridRef} style={{ flex: 1, overflow: "auto", padding: 18 }}>
         {groups.map((grp) => (
         <div key={grp.level ?? "__all"} style={{ marginBottom: grp.level !== null ? 22 : 0 }}>
         {grp.level !== null && (
           <div style={{ fontFamily: "var(--f-mono)", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--ink-muted)", margin: "0 0 8px 2px" }}>
-            {grp.level || "Unassigned"} · {grp.keys.length}
+             {grp.level || "未分配楼层"} · {grp.keys.length}
           </div>
         )}
         <div className="sheet-preview-grid" data-size={previewSize}>
@@ -673,17 +673,17 @@ export default function PlanNavigator({
             return (
               <div key={key} data-sheetkey={key} ref={(el) => { if (el && !thumb) obsRef.current?.observe(el); }}
                 onClick={() => toggleSel(key)}
-                role="group" aria-label={`Sheet ${labelOf(key)}`}
+                 role="group" aria-label={`图纸 ${labelOf(key)}`}
                 style={{ border: isSel ? "1.5px solid var(--cobalt)" : "1px solid var(--ink-faint)", background: "var(--paper-bright)", cursor: "pointer", position: "relative", boxShadow: isSel ? "var(--shadow-2)" : "var(--shadow-1)" }}>
-                <button type="button" aria-label={`Select ${labelOf(key)}`} aria-pressed={isSel} onClick={(e) => { e.stopPropagation(); toggleSel(key); }} style={{ position: "absolute", top: 8, left: 8, zIndex: 2, width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", border: isSel ? "none" : "1.5px solid var(--ink-faint)", background: isSel ? "var(--cobalt)" : "var(--paper-bright)", color: "var(--paper-bright)", fontFamily: "var(--f-mono)", fontSize: 12, fontWeight: 700 }}>{isSel ? idx + 1 : ""}</button>
+                 <button type="button" aria-label={`选择 ${labelOf(key)}`} aria-pressed={isSel} onClick={(e) => { e.stopPropagation(); toggleSel(key); }} style={{ position: "absolute", top: 8, left: 8, zIndex: 2, width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", border: isSel ? "none" : "1.5px solid var(--ink-faint)", background: isSel ? "var(--cobalt)" : "var(--paper-bright)", color: "var(--paper-bright)", fontFamily: "var(--f-mono)", fontSize: 12, fontWeight: 700 }}>{isSel ? idx + 1 : ""}</button>
                 <div style={{ position: "absolute", top: 8, right: 8, zIndex: 2, display: "flex", gap: 6 }}>
-                  <button type="button" onClick={(e) => { e.stopPropagation(); setPreviewSheet(key); }} style={ctrlBtn}>Preview</button>
+                   <button type="button" onClick={(e) => { e.stopPropagation(); setPreviewSheet(key); }} style={ctrlBtn}>预览</button>
                   {isFirstPageOfPdf && onClosePdf && (
-                    <button onClick={(e) => { e.stopPropagation(); requestClose(parsed.file); }} title={cloudMode ? "Close this PDF — unload it from the plan set (it stays in Drive)" : "Close this PDF — remove it from the plan set (local plans aren't stored elsewhere)"}
+                     <button onClick={(e) => { e.stopPropagation(); requestClose(parsed.file); }} title={cloudMode ? "从当前图纸包关闭此 PDF；Drive 中仍会保留" : "从当前图纸包移除此 PDF；本地图纸不会保存在其他位置"}
                       style={{ padding: "5px 8px", border: "none", background: "var(--paper-bright)", color: "var(--ink-muted)", cursor: "pointer", fontFamily: "var(--f-mono)", fontSize: 11, boxShadow: "var(--shadow-1)" }}>✕</button>
                   )}
-                  <button onClick={(e) => { e.stopPropagation(); onOpen([key], false); }} title="Open just this sheet"
-                    style={{ padding: "5px 12px", border: "none", background: "var(--ink)", color: "var(--paper-bright)", cursor: "pointer", fontFamily: "var(--f-mono)", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" }}>View</button>
+                   <button onClick={(e) => { e.stopPropagation(); onOpen([key], false); }} title="单独打开此图纸"
+                    style={{ padding: "5px 12px", border: "none", background: "var(--ink)", color: "var(--paper-bright)", cursor: "pointer", fontFamily: "var(--f-mono)", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" }}>打开</button>
                 </div>
                 <div data-preview-well style={{ height: 185, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--well)", borderBottom: "1px solid var(--ink-faint)", overflow: "hidden" }}>
                   {thumb
@@ -692,12 +692,12 @@ export default function PlanNavigator({
                 </div>
                 <div data-preview-caption style={{ padding: "8px 10px", display: "flex", alignItems: "baseline", gap: 8 }}>
                   <strong style={{ fontFamily: "var(--f-mono)", fontSize: 12.5, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1 }} title={key}>{labelOf(key)}</strong>
-                  {levels[key] && <span title="Level" style={{ fontSize: 9.5, fontFamily: "var(--f-mono)", color: "var(--ink-muted)", border: "1px solid var(--ink-faint)", padding: "1px 5px" }}>{levels[key]}</span>}
-                  {isOpenTab && <span title="Already open as a tab" style={{ fontSize: 9.5, fontFamily: "var(--f-mono)", color: "var(--cobalt)", textTransform: "uppercase", letterSpacing: "0.08em" }}>open</span>}
+                   {levels[key] && <span title="楼层" style={{ fontSize: 9.5, fontFamily: "var(--f-mono)", color: "var(--ink-muted)", border: "1px solid var(--ink-faint)", padding: "1px 5px" }}>{levels[key]}</span>}
+                   {isOpenTab && <span title="已在标签页打开" style={{ fontSize: 9.5, fontFamily: "var(--f-mono)", color: "var(--cobalt)", textTransform: "uppercase", letterSpacing: "0.08em" }}>已打开</span>}
                   {cnt > 0 && <span style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, color: "var(--ink-muted)" }}>{cnt}▦</span>}
                   <span style={{ fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", color: scales[key] ? (scaleUnconfirmed[key] === false ? "var(--c-warning)" : "var(--c-positive)") : detectedScales[key] ? "var(--c-warning)" : "var(--c-danger)" }}
-                    title={scales[key] && scaleUnconfirmed[key] === false ? "Scale set by an agent — no person has confirmed it. Open the sheet and confirm from the scale menu." : undefined}>
-                    {scales[key] ? (scaleUnconfirmed[key] === false ? "scale ⚠ confirm" : "scale ✓") : detectedScales[key] ? `plan: ${detectedScales[key].label}` : "no scale"}
+                     title={scales[key] && scaleUnconfirmed[key] === false ? "比例尺由智能代理设置，尚未经人工确认；请打开图纸后从比例尺菜单确认" : undefined}>
+                     {scales[key] ? (scaleUnconfirmed[key] === false ? "比例尺 ⚠ 待确认" : "比例尺 ✓") : detectedScales[key] ? `图纸标注：${detectedScales[key].label}` : "未设比例尺"}
                   </span>
                 </div>
               </div>
@@ -710,28 +710,28 @@ export default function PlanNavigator({
           <div style={{ padding: 48, textAlign: "center", color: "var(--ink-muted)", fontSize: 13.5, lineHeight: 1.7 }}>
             {!sheets.length ? (
               <div style={{ maxWidth: 560, margin: "0 auto" }}>
-                <div style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--cobalt)", marginBottom: 6 }}>People &amp; agents · one engine</div>
-                <div style={{ fontFamily: "var(--f-display)", fontSize: 18, color: "var(--ink)", lineHeight: 1.32, marginBottom: 5 }}>Measure a plan by hand — or point an AI&nbsp;agent at the same engine.</div>
-                <div style={{ fontSize: 13, color: "var(--ink-muted)", lineHeight: 1.55, marginBottom: 20 }}>Every measurement keeps its scale and how it was made — a person, one click, or an agent.</div>
+                 <div style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--cobalt)", marginBottom: 6 }}>Quantifin · 图纸算量工作区</div>
+                 <div style={{ fontFamily: "var(--f-display)", fontSize: 18, color: "var(--ink)", lineHeight: 1.32, marginBottom: 5 }}>从图纸开始测量，保留每一项工程量的依据。</div>
+                 <div style={{ fontSize: 13, color: "var(--ink-muted)", lineHeight: 1.55, marginBottom: 20 }}>可人工绘制，也可检查智能建议；比例尺、来源与复核状态会随记录保存。</div>
                 <button onClick={() => fileRef.current?.click()}
                   style={{ display: "block", width: "100%", margin: "24px auto 0", padding: "44px 24px", border: "2px dashed var(--ink-faint)", background: "var(--paper-bright)", cursor: "pointer", color: "var(--ink-muted)", fontFamily: "var(--f-body)", fontSize: 13.5, lineHeight: 1.7 }}>
-                  <div style={{ fontFamily: "var(--f-display)", fontSize: 20, color: "var(--ink)", marginBottom: 8 }}>Open your plans</div>
-                  Drag a PDF, an image, or a whole .zip plan set here — or click to choose. Nothing leaves your browser.
+                   <div style={{ fontFamily: "var(--f-display)", fontSize: 20, color: "var(--ink)", marginBottom: 8 }}>导入图纸</div>
+                   拖入 PDF、图片或 .zip 图纸包，也可以点击选择。默认在当前浏览器本地处理。
                 </button>
                 {isGoogleConfigured() && (!user || projectHomeFolderId()) && (
                   <div style={{ marginTop: 10, fontSize: 12, lineHeight: 1.6 }}>
                     {!user ? (
                       <>
                         <button type="button" onClick={handleDriveSignIn} disabled={driveBusy}
-                          title="Sign in with your team Google account to open projects stored in Drive"
+                           title="使用团队 Google 账号打开 Drive 中的项目"
                           style={{ border: "none", background: "transparent", padding: 0, color: "var(--cobalt)", cursor: driveBusy ? "default" : "pointer", fontSize: 12, textDecoration: "underline", fontFamily: "var(--f-body)" }}>
-                          {driveBusy ? "Signing in…" : "or sign in with Google Drive"}
+                           {driveBusy ? "正在登录…" : "或登录 Google Drive"}
                         </button>
-                        {driveErr ? <div style={{ color: "var(--c-danger)", fontSize: 11.5, marginTop: 5 }}>Sign-in failed: {driveErr}</div> : null}
+                         {driveErr ? <div style={{ color: "var(--c-danger)", fontSize: 11.5, marginTop: 5 }}>登录失败：{driveErr}</div> : null}
                       </>
                     ) : (
                       <Link to="/projects" style={{ color: "var(--cobalt)", fontSize: 12, textDecoration: "underline" }}>
-                        browse your Google Drive projects
+                         浏览 Google Drive 项目
                       </Link>
                     )}
                   </div>
@@ -741,19 +741,19 @@ export default function PlanNavigator({
                     {!m365Active ? (
                       <>
                         <button type="button" onClick={doLinkM365}
-                          title="Sign in with your work account and sync this workspace through the configured document library. Experimental (issue #315) — tokens stay in this browser."
+                           title="使用工作账号通过配置的文档库同步工作区（测试功能；令牌保存在当前浏览器）"
                           style={{ border: "none", background: "transparent", padding: 0, color: "var(--cobalt)", cursor: "pointer", fontSize: 12, textDecoration: "underline", fontFamily: "var(--f-body)" }}>
-                          or sync through your Microsoft 365 library (experimental)
+                           或通过 Microsoft 365 文档库同步（测试功能）
                         </button>
-                        {m365Err ? <div style={{ color: "var(--c-danger)", fontSize: 11.5, marginTop: 5 }}>365 sign-in failed: {m365Err}</div> : null}
+                         {m365Err ? <div style={{ color: "var(--c-danger)", fontSize: 11.5, marginTop: 5 }}>Microsoft 365 登录失败：{m365Err}</div> : null}
                       </>
                     ) : (
                       <span style={{ color: "var(--ink-muted)" }}>
-                        syncing through your <strong style={{ color: "var(--ink)" }}>Microsoft 365 library</strong>
+                         正在通过 <strong style={{ color: "var(--ink)" }}>Microsoft 365 文档库</strong>同步
                         {" · "}
                         <button type="button" onClick={doStopM365}
                           style={{ border: "none", background: "transparent", padding: 0, color: "var(--c-danger)", cursor: "pointer", fontSize: 12, textDecoration: "underline", fontFamily: "var(--f-body)" }}>
-                          stop
+                           停止
                         </button>
                       </span>
                     )}
@@ -763,55 +763,54 @@ export default function PlanNavigator({
                   <div style={{ marginTop: 8, fontSize: 12, lineHeight: 1.6 }}>
                     {!folderLink ? (
                       <button type="button" onClick={doLinkFolder}
-                        title="Pick a folder your team already syncs (a network share, a synced document library) — the takeoff syncs through it as one JSON file. No account, no credentials; the folder's own sync client does the transport."
+                         title="选择团队已有的同步文件夹；算量数据会作为一个 JSON 文件保存在该目录，由文件夹自身的同步程序传输"
                         style={{ border: "none", background: "transparent", padding: 0, color: "var(--cobalt)", cursor: "pointer", fontSize: 12, textDecoration: "underline", fontFamily: "var(--f-body)" }}>
-                        or sync this workspace through a shared folder
+                         或通过共享文件夹同步工作区
                       </button>
                     ) : (
                       <span style={{ color: "var(--ink-muted)" }}>
-                        syncing through folder <strong style={{ color: "var(--ink)" }}>“{folderLink.name}”</strong>
+                         正在通过文件夹 <strong style={{ color: "var(--ink)" }}>“{folderLink.name}”</strong> 同步
                         {" · "}
                         <button type="button" onClick={doForgetFolder}
                           style={{ border: "none", background: "transparent", padding: 0, color: "var(--c-danger)", cursor: "pointer", fontSize: 12, textDecoration: "underline", fontFamily: "var(--f-body)" }}>
-                          stop
+                           停止
                         </button>
                       </span>
                     )}
                   </div>
                 )}
                 <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "18px auto 16px", color: "var(--text-faint)", fontFamily: "var(--f-mono)", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase" }}>
-                  <span style={{ flex: 1, height: 1, background: "var(--ink-faint)" }} />new here?<span style={{ flex: 1, height: 1, background: "var(--ink-faint)" }} />
+                   <span style={{ flex: 1, height: 1, background: "var(--ink-faint)" }} />初次使用？<span style={{ flex: 1, height: 1, background: "var(--ink-faint)" }} />
                 </div>
-                <button onClick={loadSample} disabled={sampleBusy} title="Open a real floor finish plan and try a takeoff"
+                 <button onClick={loadSample} disabled={sampleBusy} title="打开示例地面饰面图并试用算量"
                   style={{ display: "inline-flex", alignItems: "center", gap: 9, padding: "13px 22px", border: "1px solid var(--ink)", background: "var(--cobalt)", color: "var(--paper-bright)", cursor: sampleBusy ? "default" : "pointer", opacity: sampleBusy ? 0.65 : 1, fontWeight: 700, fontSize: 14, fontFamily: "var(--f-body)" }}>
-                  <Icon name="takeoff" size={16} />{sampleBusy ? "Loading sample…" : "Load sample plan"}
+                   <Icon name="takeoff" size={16} />{sampleBusy ? "正在载入示例…" : "载入示例图纸"}
                 </button>
                 <div style={{ fontFamily: "var(--f-body)", fontSize: 12.5, color: "var(--ink-muted)", marginTop: 11, lineHeight: 1.6 }}>
-                  A real medical-center <strong style={{ color: "var(--ink)" }}>floor finish plan</strong> — the scale auto-detects;
-                  pick a finish and trace a flooring takeoff in seconds.
+                   示例为医疗中心<strong style={{ color: "var(--ink)" }}>地面饰面图</strong>；可尝试自动识别比例尺、选择饰面并绘制测量区域。
                 </div>
                 <div style={{ marginTop: 30, fontFamily: "var(--f-mono)", fontSize: 10.5, letterSpacing: "0.1em", color: "var(--text-faint)" }}>
-                  Apache-2.0 open source · an open project by{" "}
+                   基于 Apache-2.0 开源项目 OpenTakeoff · 原项目作者：{" "}
                   <a href="https://kentucky-ai.com" target="_blank" rel="noopener" style={{ color: "var(--ink-muted)" }}>Kentucky&nbsp;AI</a>
                 </div>
               </div>
             ) : enumerated ? (
               <>
-                <div style={{ fontFamily: "var(--f-display)", fontSize: 16, color: "var(--ink)", marginBottom: 6 }}>Couldn't read those PDFs</div>
-                None of the opened files would render — try opening them again.
+                 <div style={{ fontFamily: "var(--f-display)", fontSize: 16, color: "var(--ink)", marginBottom: 6 }}>无法读取这些 PDF</div>
+                 已打开的文件均无法渲染，请重新选择图纸。
               </>
-            ) : "Reading the plan set…"}
+            ) : "正在读取图纸…"}
           </div>
         )}
       </div>
       {stitches.length > 0 && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "9px 18px", borderTop: "1px solid var(--ink-faint)", background: "var(--paper-bright)" }}>
-          <span style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--ink-muted)" }}>Stitched surfaces</span>
+           <span style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--ink-muted)" }}>拼接图纸</span>
           {stitches.map((st) => (
             <span key={st.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid var(--ink-faint)", padding: "4px 8px", fontSize: 12 }}>
-              <button onClick={() => onOpenStitch && onOpenStitch(st.id)} title={`Open ${st.name} — ${st.members.length} sheets as one working surface`}
+               <button onClick={() => onOpenStitch && onOpenStitch(st.id)} title={`打开 ${st.name}：将 ${st.members.length} 张图纸作为一个工作区域`}
                 style={{ border: "none", background: "transparent", color: "var(--cobalt)", cursor: "pointer", fontWeight: 600, fontSize: 12, padding: 0 }}>{st.name}</button>
-              <button onClick={() => onDeleteStitch && onDeleteStitch(st.id)} title="Delete this stitch (refused while takeoffs live on it)"
+               <button onClick={() => onDeleteStitch && onDeleteStitch(st.id)} title="删除拼接图纸；存在测量记录时不可删除"
                 style={{ border: "none", background: "transparent", color: "var(--ink-muted)", cursor: "pointer", fontSize: 12, padding: 0 }}>×</button>
             </span>
           ))}
@@ -819,29 +818,29 @@ export default function PlanNavigator({
       )}
       {sheets.length > 0 && (
         <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "12px 18px", borderTop: "1px solid var(--ink)", background: "var(--paper-bright)" }}>
-          <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, color: "var(--ink-muted)" }}>{sel.length ? `${sel.length} selected` : "select sheets, or hover a card and hit View"}</span>
+           <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, color: "var(--ink-muted)" }}>{sel.length ? `已选择 ${sel.length} 张图纸` : "选择图纸，或点击缩略图上的打开按钮"}</span>
           <div style={{ flex: 1 }} />
           {sel.length > 0 && (
             <>
-              <button onClick={assignLevel} title="Group the selected sheets under a floor/level — the gallery sorts by it and tabs carry the label"
-                style={{ padding: "7px 12px", border: "1px solid var(--ink-faint)", background: "transparent", color: "var(--ink)", cursor: "pointer", fontSize: 12 }}>Assign level…</button>
-              <button onClick={() => setSel([])} style={{ padding: "7px 12px", border: "1px solid var(--ink-faint)", background: "transparent", color: "var(--ink-muted)", cursor: "pointer", fontSize: 12 }}>Clear</button>
+               <button onClick={assignLevel} title="为所选图纸指定楼层；缩略图会按楼层分组，标签也显示楼层名称"
+                 style={{ padding: "7px 12px", border: "1px solid var(--ink-faint)", background: "transparent", color: "var(--ink)", cursor: "pointer", fontSize: 12 }}>指定楼层…</button>
+               <button onClick={() => setSel([])} style={{ padding: "7px 12px", border: "1px solid var(--ink-faint)", background: "transparent", color: "var(--ink-muted)", cursor: "pointer", fontSize: 12 }}>清除选择</button>
             </>
           )}
           <button disabled={!sel.length} onClick={() => onOpen(sel, false)}
             style={{ padding: "8px 14px", border: "1px solid var(--ink)", background: "transparent", color: "var(--ink)", cursor: sel.length ? "pointer" : "default", opacity: sel.length ? 1 : 0.4, fontWeight: 700, fontSize: 12.5 }}>
-            Open {sel.length || ""} as tabs
+             将 {sel.length || 0} 张图纸作为标签打开
           </button>
           <button disabled={sel.length < 2 || sel.length > MAX_GROUP} onClick={() => onOpen(sel, true)}
-            title={sel.length > MAX_GROUP ? `Side-by-side maxes at ${MAX_GROUP} — open as tabs instead` : "One pan/zoom moves the whole row"}
+             title={sel.length > MAX_GROUP ? `最多并排 ${MAX_GROUP} 张；请改用标签页` : "平移或缩放时一起移动"}
             style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 14px", border: "none", background: sel.length >= 2 && sel.length <= MAX_GROUP ? "var(--cobalt)" : "var(--ink-faint)", color: "var(--paper-bright)", cursor: sel.length >= 2 && sel.length <= MAX_GROUP ? "pointer" : "default", fontWeight: 700, fontSize: 12.5 }}>
-            <Icon name="sideBySide" size={14} />Open {sel.length >= 2 ? sel.length : ""} side-by-side
+             <Icon name="sideBySide" size={14} />并排打开 {sel.length >= 2 ? sel.length : ""} 张
           </button>
           {onStitch && (
             <button disabled={sel.length < 2 || sel.length > MAX_GROUP} onClick={() => onStitch(sel)}
-              title={sel.length > MAX_GROUP ? `A stitch maxes at ${MAX_GROUP} sheets` : "Stitch — join a floor split at a match line into ONE working surface: the sheets butt edge-to-edge (no gap), you align the match line with two clicks, then a room crossing it traces as one shape"}
+               title={sel.length > MAX_GROUP ? `最多拼接 ${MAX_GROUP} 张图纸` : "将分幅图纸沿接图线拼为一个工作区域；用两个对应点对齐后，可跨图纸测量"}
               style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 14px", border: "1px solid var(--ink)", background: "transparent", color: sel.length >= 2 && sel.length <= MAX_GROUP ? "var(--ink)" : "var(--ink-faint)", cursor: sel.length >= 2 && sel.length <= MAX_GROUP ? "pointer" : "default", fontWeight: 700, fontSize: 12.5 }}>
-              <Icon name="calibrate" size={14} />Stitch {sel.length >= 2 ? sel.length : ""} into one surface
+               <Icon name="calibrate" size={14} />拼接 {sel.length >= 2 ? sel.length : ""} 张图纸
             </button>
           )}
         </div>
@@ -872,7 +871,7 @@ export default function PlanNavigator({
       <div style={{ flex: 1, overflow: "auto" }}>
         <label style={{ ...rowBase, cursor: "pointer", background: "var(--well)" }}>
           <input name="manage-all" type="checkbox" checked={mAll} onChange={() => setMSel(mAll ? [] : sheets.map((s) => s.name))} style={{ width: 16, height: 16, cursor: "pointer" }} />
-          <span style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--ink-muted)" }}>{mAll ? "Clear selection" : "Select all"}</span>
+           <span style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--ink-muted)" }}>{mAll ? "清除选择" : "全选"}</span>
         </label>
         {sheets.map((s) => {
           const pg = pageOf(s.name);
@@ -882,57 +881,57 @@ export default function PlanNavigator({
             <label key={s.name} style={{ ...rowBase, cursor: "pointer" }}>
               <input name="manage-pick" type="checkbox" checked={mSel.includes(s.name)} onChange={() => mToggle(s.name)} style={{ width: 16, height: 16, cursor: "pointer" }} />
               <span style={{ fontFamily: "var(--f-mono)", fontSize: 13, color: "var(--ink)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={s.name}>{s.name}</span>
-              {tabsOpen > 0 && <span style={{ fontFamily: "var(--f-mono)", fontSize: 9.5, color: "var(--cobalt)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{tabsOpen} open</span>}
-              <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, color: "var(--ink-muted)", minWidth: 74, textAlign: "right" }}>{pg !== undefined ? `${pg || "?"} sheet${pg === 1 ? "" : "s"}` : "…"}</span>
-              <span title={cnt ? "This PDF carries takeoffs — they persist in the project and restore if you re-add the same file" : undefined}
+               {tabsOpen > 0 && <span style={{ fontFamily: "var(--f-mono)", fontSize: 9.5, color: "var(--cobalt)", textTransform: "uppercase", letterSpacing: "0.08em" }}>已打开 {tabsOpen}</span>}
+               <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, color: "var(--ink-muted)", minWidth: 74, textAlign: "right" }}>{pg !== undefined ? `${pg || "?"} 张图纸` : "…"}</span>
+               <span title={cnt ? "此 PDF 有测量记录；重新添加同名文件后可恢复显示" : undefined}
                 style={{ fontFamily: "var(--f-mono)", fontSize: 11, color: cnt ? "var(--c-warning)" : "var(--text-faint)", minWidth: 88, textAlign: "right" }}>
-                {cnt ? `${cnt} takeoff${cnt === 1 ? "" : "s"}` : "no takeoffs"}
+                 {cnt ? `${cnt} 项测量` : "无测量记录"}
               </span>
             </label>
           );
         })}
         {!sheets.length && (
-          <div style={{ padding: 40, textAlign: "center", color: "var(--ink-muted)", fontSize: 13 }}>The workspace is empty — nothing stored.</div>
+           <div style={{ padding: 40, textAlign: "center", color: "var(--ink-muted)", fontSize: 13 }}>工作区为空，尚无已保存图纸。</div>
         )}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderTop: "1px solid var(--ink)", background: "var(--paper-bright)", flexWrap: "wrap" }}>
         <span style={{ fontFamily: "var(--f-mono)", fontSize: 11.5, color: "var(--ink-muted)" }}>
-          {working ? "Working…" : mSel.length ? `${mSel.length} PDF${mSel.length === 1 ? "" : "s"} selected${mSelShapes ? ` · ${mSelShapes} takeoff${mSelShapes === 1 ? "" : "s"} on them` : ""}` : "check the PDFs to remove — removing never deletes takeoff data"}
+           {working ? "正在处理…" : mSel.length ? `已选择 ${mSel.length} 个 PDF${mSelShapes ? `，其中有 ${mSelShapes} 项测量` : ""}` : "勾选要移除的 PDF；移除图纸不会删除测量数据"}
         </span>
         <div style={{ flex: 1 }} />
         {m365Cfg && m365Active && (
-          <span title="Annotations sync through the configured Microsoft 365 document library (experimental — issue #315)"
+           <span title="批注通过已配置的 Microsoft 365 文档库同步（测试功能）"
             style={{ fontFamily: "var(--f-mono)", fontSize: 11, color: "var(--ink-muted)" }}>
-            ⇄ 365 library{" "}
-            <button onClick={doStopM365} title="Stop syncing through the 365 library — local work stays in this browser"
+             ⇄ 365 文档库{" "}
+             <button onClick={doStopM365} title="停止通过文档库同步；本地工作仍保存在浏览器中"
               style={{ border: "none", background: "transparent", padding: 0, color: "var(--c-danger)", cursor: "pointer", fontSize: 11, textDecoration: "underline", fontFamily: "var(--f-mono)" }}>
-              stop
+               停止
             </button>
           </span>
         )}
         {folderUiOn && (folderLink ? (
-          <span title={folderCopies.length ? `The folder's sync client forked the annotations file — someone should reconcile these by hand:\n${folderCopies.join("\n")}` : `Annotations sync through “${folderLink.name}” — the folder's own sync client replicates them`}
+           <span title={folderCopies.length ? `同步文件夹出现冲突副本，请人工核对：\n${folderCopies.join("\n")}` : `批注通过“${folderLink.name}”同步，文件夹的同步程序负责传输`}
             style={{ fontFamily: "var(--f-mono)", fontSize: 11, color: folderCopies.length ? "var(--c-warning)" : "var(--ink-muted)" }}>
-            ⇄ “{folderLink.name}”{folderCopies.length ? ` · ${folderCopies.length} conflict cop${folderCopies.length === 1 ? "y" : "ies"}` : ""}
+             ⇄ “{folderLink.name}”{folderCopies.length ? ` · ${folderCopies.length} 个冲突副本` : ""}
             {" "}
-            <button onClick={doForgetFolder} title="Stop syncing through this folder — local work stays in this browser"
+             <button onClick={doForgetFolder} title="停止通过此文件夹同步；本地工作仍保存在浏览器中"
               style={{ border: "none", background: "transparent", padding: 0, color: "var(--c-danger)", cursor: "pointer", fontSize: 11, textDecoration: "underline", fontFamily: "var(--f-mono)" }}>
-              stop
+               停止
             </button>
           </span>
         ) : (
           <button onClick={doLinkFolder} disabled={working}
-            title="Pick a folder your team already syncs — the takeoff syncs through it as one JSON file, no credentials involved"
-            style={{ ...ctrlBtn, opacity: working ? 0.5 : 1 }}>Sync through a folder…</button>
+             title="选择团队已有的同步文件夹，算量数据会作为一个 JSON 文件保存在其中"
+             style={{ ...ctrlBtn, opacity: working ? 0.5 : 1 }}>通过文件夹同步…</button>
         ))}
         {onClearWorkspace && (
           <button onClick={() => setConfirmClear(true)} disabled={working}
-            title="Remove every stored PDF and reset the takeoff — a snapshot of a non-empty takeoff is saved first (Revisions restores it)"
-            style={{ ...ctrlBtn, border: "1px solid var(--c-danger)", color: "var(--c-danger)", opacity: working ? 0.5 : 1 }}>Clear workspace…</button>
+             title="移除所有 PDF 并清空算量；非空项目会先保存快照，可从修订记录恢复"
+             style={{ ...ctrlBtn, border: "1px solid var(--c-danger)", color: "var(--c-danger)", opacity: working ? 0.5 : 1 }}>清空工作区…</button>
         )}
         <button onClick={() => setConfirmBulk(true)} disabled={!mSel.length || working}
           style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 16px", border: "1px solid var(--ink)", background: mSel.length && !working ? "var(--ink)" : "var(--ink-faint)", color: "var(--paper-bright)", cursor: mSel.length && !working ? "pointer" : "default", fontWeight: 700, fontSize: 13 }}>
-          Remove {mSel.length || ""} selected
+           移除所选 {mSel.length || 0} 个文件
         </button>
       </div>
     </>
@@ -941,18 +940,18 @@ export default function PlanNavigator({
   const bulkDialog = confirmBulk && (
     <div onClick={() => setConfirmBulk(false)} style={{ position: "absolute", inset: 0, zIndex: 5, background: "var(--scrim)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div onClick={(e) => e.stopPropagation()} className="panel" style={{ width: 460, maxWidth: "100%", background: "var(--paper-bright)", boxShadow: "var(--shadow-2)", padding: "18px 20px" }}>
-        <strong style={{ fontFamily: "var(--f-display)", fontSize: 15, color: "var(--ink)" }}>Remove {mSel.length} PDF{mSel.length === 1 ? "" : "s"} from the plan set?</strong>
+         <strong style={{ fontFamily: "var(--f-display)", fontSize: 15, color: "var(--ink)" }}>从图纸包移除 {mSel.length} 个 PDF？</strong>
         <p style={{ fontSize: 12.5, color: "var(--ink-muted)", lineHeight: 1.6, margin: "10px 0 4px" }}>
           {cloudMode
-            ? "They stop loading in this plan set — the files stay in your Drive project and re-add any time from Browse Drive."
-            : "Their stored bytes are removed from this browser. Local plans aren't stored anywhere else, so you'd re-open the files to get them back."}
+             ? "这些文件将停止在当前图纸包中加载，但仍保留在 Drive 项目中，可再次添加。"
+             : "文件数据将从当前浏览器移除；本地图纸不会自动保存在其他位置，需要重新选择原文件才能恢复。"}
           {mSelShapes > 0 && (
-            <><br /><span style={{ color: "var(--c-warning)" }}>{mSelShapes} takeoff{mSelShapes === 1 ? "" : "s"} live on these PDFs — they're preserved in the project and restore if you re-add the same files.</span></>
+             <><br /><span style={{ color: "var(--c-warning)" }}>这些 PDF 上有 {mSelShapes} 项测量记录；数据会保留在项目中，重新添加原文件后恢复显示。</span></>
           )}
         </p>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
-          <button onClick={() => setConfirmBulk(false)} style={{ ...ctrlBtn, color: "var(--ink-muted)" }}>Cancel</button>
-          <button onClick={doBulkRemove} style={{ ...ctrlBtn, border: "1px solid var(--ink)", background: "var(--ink)", color: "var(--paper-bright)", fontWeight: 700 }}>Remove {mSel.length}</button>
+           <button onClick={() => setConfirmBulk(false)} style={{ ...ctrlBtn, color: "var(--ink-muted)" }}>取消</button>
+           <button onClick={doBulkRemove} style={{ ...ctrlBtn, border: "1px solid var(--ink)", background: "var(--ink)", color: "var(--paper-bright)", fontWeight: 700 }}>移除 {mSel.length} 个文件</button>
         </div>
       </div>
     </div>
@@ -961,14 +960,14 @@ export default function PlanNavigator({
   const clearDialog = confirmClear && (
     <div onClick={() => setConfirmClear(false)} style={{ position: "absolute", inset: 0, zIndex: 5, background: "var(--scrim)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div onClick={(e) => e.stopPropagation()} className="panel" style={{ width: 460, maxWidth: "100%", background: "var(--paper-bright)", boxShadow: "var(--shadow-2)", padding: "18px 20px" }}>
-        <strong style={{ fontFamily: "var(--f-display)", fontSize: 15, color: "var(--c-danger)" }}>Clear the whole workspace?</strong>
+         <strong style={{ fontFamily: "var(--f-display)", fontSize: 15, color: "var(--c-danger)" }}>清空整个工作区？</strong>
         <p style={{ fontSize: 12.5, color: "var(--ink-muted)", lineHeight: 1.6, margin: "10px 0 4px" }}>
-          Every stored PDF ({sheets.length}) is removed and the takeoff resets to empty — a clean start without touching browser storage by hand.
-          <br /><span style={{ color: "var(--ink)" }}>A non-empty takeoff is snapshotted first</span> — Revisions → restore brings it back (you'd re-open the same PDFs to see its shapes). The PDFs themselves aren't stored anywhere else.
+           将移除全部 {sheets.length} 个 PDF 并清空当前算量数据。
+           <br /><span style={{ color: "var(--ink)" }}>非空项目会先保存快照</span>，可从修订记录恢复；届时需重新打开原 PDF 才能查看测量图形。PDF 原件不会另行备份。
         </p>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
-          <button onClick={() => setConfirmClear(false)} style={{ ...ctrlBtn, color: "var(--ink-muted)" }}>Cancel</button>
-          <button onClick={doClear} style={{ ...ctrlBtn, border: "1px solid var(--c-danger)", background: "var(--c-danger)", color: "var(--paper-bright)", fontWeight: 700 }}>Clear workspace</button>
+           <button onClick={() => setConfirmClear(false)} style={{ ...ctrlBtn, color: "var(--ink-muted)" }}>取消</button>
+           <button onClick={doClear} style={{ ...ctrlBtn, border: "1px solid var(--c-danger)", background: "var(--c-danger)", color: "var(--paper-bright)", fontWeight: 700 }}>清空工作区</button>
         </div>
       </div>
     </div>
@@ -978,24 +977,24 @@ export default function PlanNavigator({
   const confirmDialog = confirmClose && (
     <div onClick={() => setConfirmClose(null)} style={{ position: "absolute", inset: 0, zIndex: 5, background: "var(--scrim)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div onClick={(e) => e.stopPropagation()} className="panel" style={{ width: 440, maxWidth: "100%", background: "var(--paper-bright)", boxShadow: "var(--shadow-2)", padding: "18px 20px" }}>
-        <strong style={{ fontFamily: "var(--f-display)", fontSize: 15, color: "var(--ink)" }}>Close “{confirmClose.file}”?</strong>
+         <strong style={{ fontFamily: "var(--f-display)", fontSize: 15, color: "var(--ink)" }}>关闭“{confirmClose.file}”？</strong>
         <p style={{ fontSize: 12.5, color: "var(--ink-muted)", lineHeight: 1.6, margin: "10px 0 4px" }}>
           {cloudMode
-            ? "Closing removes it from this plan set so it stops loading — the file stays in your Drive project and you can re-add it any time from Browse Drive."
-            : "This removes the PDF from the plan set. Local plans aren't stored anywhere else, so you'll have to re-open the file to get it back."}
+             ? "关闭后此文件不再从图纸包加载，但仍保留在 Drive 项目中，可随时再次添加。"
+             : "此操作从图纸包移除 PDF；本地图纸不会自动保存在其他位置，需要重新选择原文件才能恢复。"}
           {confirmClose.shapeCount > 0 && (
-            <><br /><span style={{ color: "var(--c-warning)" }}>This PDF has {confirmClose.shapeCount} takeoff{confirmClose.shapeCount === 1 ? "" : "s"} — they're preserved and restore if you re-add the same file.</span></>
+             <><br /><span style={{ color: "var(--c-warning)" }}>此 PDF 上有 {confirmClose.shapeCount} 项测量；数据会保留，重新添加原文件后恢复显示。</span></>
           )}
         </p>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16, flexWrap: "wrap" }}>
-          <button onClick={() => setConfirmClose(null)} style={{ ...ctrlBtn, color: "var(--ink-muted)" }}>Cancel</button>
+           <button onClick={() => setConfirmClose(null)} style={{ ...ctrlBtn, color: "var(--ink-muted)" }}>取消</button>
           {cloudMode && onRemoveFromProject && (
-            <button onClick={doRemove} title="Permanently delete the PDF from the Drive project"
-              style={{ ...ctrlBtn, border: "1px solid var(--c-danger)", color: "var(--c-danger)" }}>Delete from Drive</button>
+             <button onClick={doRemove} title="从 Drive 项目永久删除此 PDF"
+               style={{ ...ctrlBtn, border: "1px solid var(--c-danger)", color: "var(--c-danger)" }}>从 Drive 删除</button>
           )}
           <button onClick={doClose}
             style={{ ...ctrlBtn, border: "1px solid var(--ink)", background: "var(--ink)", color: "var(--paper-bright)", fontWeight: 700 }}>
-            {cloudMode ? "Close (keep in Drive)" : "Remove"}
+             {cloudMode ? "关闭（保留在 Drive）" : "移除"}
           </button>
         </div>
       </div>
