@@ -22,9 +22,12 @@ test('CAD-style PDF dimensions infer 1:100 from two mm annotations', async () =>
     const sheet = await pdf.getPage(1);
     const viewport = sheet.getViewport({ scale: RENDER_SCALE });
     const geometry = extractVectorGeometry(await sheet.getOperatorList(), viewport.transform, pdfjs.OPS);
-    const found = detectDimensionScale(await sheet.getTextContent(), viewport, geometry.segs);
+    const text = await sheet.getTextContent();
+    const found = detectDimensionScale({ ...text, items: text.items.filter(item => "str" in item) }, viewport, geometry.segs);
     assert.ok(found);
     assert.equal(found.evidenceCount, 2);
+    assert.equal(found.evidence?.length, 2);
+    assert.ok(found.evidence?.every(w => w.line?.length === 4 && Number(w.text.text) > 0));
     assert.equal(found.multi, false);
     assert.ok(Math.abs(found.upp - 100 / (72 * RENDER_SCALE * 12)) < 0.000001);
   } finally { await pdf.destroy(); }

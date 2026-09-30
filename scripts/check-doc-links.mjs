@@ -59,7 +59,7 @@ function slugify(heading) {
 // not documentation, on both sides (a fenced example of a broken link must not
 // fail the build; a fenced `# comment` is not an anchor target).
 function scan(relPath) {
-  const lines = readFileSync(join(root, relPath), "utf8").split("\n");
+  const lines = readFileSync(join(root, relPath), "utf8").split(/\r?\n/);
   const anchors = new Set();
   const links = []; // {line, target}
   const counts = new Map();

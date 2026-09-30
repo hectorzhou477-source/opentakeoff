@@ -567,6 +567,7 @@ export default function PlanNavigator({
         <input name="sheet-file" ref={fileRef} type="file" accept=".pdf,application/pdf,image/*,.zip,application/zip,application/x-zip-compressed,.otk" multiple style={{ display: "none" }}
           onChange={(e) => { onAddFiles(e.target.files); e.target.value = ""; }} />
       )}
+      {mode === "plan" && sheets.length > 0 && <Link to={"/scale-review" + window.location.search} style={ctrlBtn}>批量比例尺核对</Link>}
       <AuthChip />
       {onCloseProject && (
          <button onClick={onCloseProject} title="关闭此项目并返回本地画布" style={{ ...ctrlBtn, color: "var(--ink-muted)" }}>关闭项目</button>

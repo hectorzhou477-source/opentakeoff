@@ -10,6 +10,7 @@ export type { ParsedSheetKey } from "./sheetKey";
 
 import { RENDER_SCALE } from "./takeoffConstants.ts";
 import { inferMmScaleFromDimensions } from "./mmScale";
+import type { MmScaleEvidence } from "./mmScale";
 export { RENDER_SCALE }; // owned by takeoffConstants; re-exported for existing importers
 
 // Pure fallback branch of the canvas `sheetBaseLabel` closure (TakeoffCanvas.jsx
@@ -63,6 +64,7 @@ export interface DetectedScale {
   multi: boolean;
   method?: "note" | "dimension" | "ocr";
   evidenceCount?: number;
+  evidence?: MmScaleEvidence["evidence"];
   auto?: boolean;
   reason?: string;
 }
