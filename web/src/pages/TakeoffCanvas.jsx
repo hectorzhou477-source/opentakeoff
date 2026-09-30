@@ -8228,6 +8228,9 @@ export default function TakeoffCanvas() {
         onChange={(e) => { importProfileFile(e.target.files?.[0]); e.target.value = ""; }} />
       <input name="takeoff-import" ref={importInputRef} type="file" accept=".json,application/json" style={{ display: "none" }}
         onChange={(e) => { importTakeoffFile(e.target.files?.[0]); e.target.value = ""; }} />
+      {focusMode && <button type="button" className="qe-exit-focus" onClick={toggleFocusMode} aria-label="退出专注模式" title="退出专注模式（F）">
+        <Icon name="focus" size={16} />退出专注模式 <kbd>F</kbd>
+      </button>}
       {/* THE top bar — one row (the two decks of issue #61 merged once the
           tool rail absorbed the draw menus). Project verbs left, work verbs
           center, Report + the ⋯ overflow (guide, appearance — chrome theme and
@@ -9978,12 +9981,13 @@ export default function TakeoffCanvas() {
               is stopped so rapid clicks can't finishShape() */}
           <div onPointerDown={(e) => { if (e.button === 0 && !spaceRef.current) e.stopPropagation(); }} onDoubleClick={(e) => e.stopPropagation()}
             style={{ position: "absolute", left: 14, bottom: 14, display: "flex", flexDirection: "column", gap: 6 }}>
-            <button onClick={() => stage.w && fitToView(stage.w, stage.h)} title="Fit sheet to view" style={{ width: 34, height: 34, borderRadius: 0, border: "1px solid var(--ink-faint)", background: "var(--paper-bright)", cursor: "pointer", fontSize: 12 }}>fit</button>
+            <button onClick={() => stage.w && fitToView(stage.w, stage.h)} title="适应图纸大小" aria-label="适应图纸大小" style={{ width: 34, height: 34, borderRadius: 0, border: "1px solid var(--ink-faint)", background: "var(--paper-bright)", color: "var(--ink)", padding: 0, cursor: "pointer", fontSize: 12 }}>适应</button>
             <button onClick={() => setDarkMode((d) => !d)} title={darkMode ? "Sheet back to positive print" : "Invert sheet — negative print (affects marked-set export)"}
               style={{ width: 34, height: 34, borderRadius: 0, border: `1px solid ${darkMode ? "var(--cobalt)" : "var(--ink-faint)"}`, background: darkMode ? "var(--cobalt)" : "var(--paper-bright)", color: darkMode ? "var(--paper-bright)" : "var(--ink)", cursor: "pointer", fontSize: 13 }}>
               {darkMode ? "☀" : "☾"}</button>
-            <button onClick={() => toggleFocusMode()} title={focusMode ? "Focus off — show all chrome (F)" : "Focus — trade chrome for canvas height (F)"}
+            {!focusMode && <button onClick={() => toggleFocusMode()} title="进入专注模式（F）" aria-label="进入专注模式"
               style={{ width: 34, height: 34, borderRadius: 0, border: `1px solid ${focusMode ? "var(--cobalt)" : "var(--ink-faint)"}`, background: focusMode ? "var(--cobalt)" : "var(--paper-bright)", color: focusMode ? "var(--accent-contrast)" : "var(--ink)", cursor: "pointer", fontSize: 13 }}>⛶</button>
+            }
           </div>
         </div>
 

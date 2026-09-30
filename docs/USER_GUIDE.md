@@ -1,6 +1,14 @@
 <!-- Modified by Quantifin, 2026-09-28: document the downstream Chinese workbench. -->
 # OpenTakeoff — The User Manual
 
+## Quantifin guided workflow
+
+The Quantifin workspace home presents the estimating process as four vertical stages: import drawings, confirm scale, measure and configure materials, then review and export. The highlighted stage comes from saved project data. After an import or another completed stage, the page scrolls the next required stage into view; completed stages remain available above it.
+
+Use the four-step bar to jump directly to any stage. The scale-review and takeoff pages remain the specialist working surfaces, while the home page keeps the overall sequence and current status visible.
+
+In focus mode, use the blue **退出专注模式** button at the upper-right of the canvas, or press F, to restore the workspace panels.
+
 ### Annotation toolbar and reviewed Sweep
 
 The top **Annotate** row provides **Arrow**, **Highlighter**, **Callout**, **Cloud + note**, **Sweep**, **Select markups**, and **Favorites**. Arrowheads, both ends, page-point line weights, colors, line styles, and note sizes are editable. Select a markup and drag its handles; a callout's text box moves independently of its target. Highlighter offers Freehand, Straight, and Text modes. Text mode highlights whole native PDF text runs, including rotated runs; scanned text needs a stroke instead. Favorites save named tool styles in this browser.
