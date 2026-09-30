@@ -1902,6 +1902,19 @@ export default function TakeoffCanvas() {
     goToSheet(openTabs[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openTabs, sheets]);
+  // Task-board links use the stored sheet key (file name plus optional #page).
+  // The older title-block label deep link below remains available as well.
+  useEffect(() => {
+    const requested = wantSheetRef.current;
+    if (!requested || !sheets.length) return;
+    const target = parseSheetKey(requested);
+    if (!sheets.some(s => s.name === target.file)) return;
+    setActive(target.file);
+    setPage(target.page);
+    setSheetGroup([]);
+    setView("canvas");
+    wantSheetRef.current = "";
+  }, [sheets]);
   // keep the active tab visible in the scrolling strip (no-op while the row wraps)
   useEffect(() => {
     const strip = tabStripRef.current; if (!strip || openTabs.length <= MANY_TABS) return;

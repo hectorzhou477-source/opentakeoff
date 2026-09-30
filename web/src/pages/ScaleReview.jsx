@@ -127,14 +127,17 @@ export default function ScaleReview() {
         } catch (e) { list.push({ key: file.name, file: file.name, page: 1, error: String(e.message || e) }); }
         if (session.live) setRows([...list]);
       }
-      if (session.live) setActive(list.find(r => !r.error)?.key || null);
+      if (session.live) {
+        const requested = new URLSearchParams(location.search).get('sheet');
+        setActive(list.find(r => r.key === requested && !r.error)?.key || list.find(r => !r.error)?.key || null);
+      }
     })().catch(e => { if (session.live) setError(String(e.message || e)); }).finally(() => { if (session.live) setLoading(false); });
     return () => {
       session.live = false; abortRef.current = true;
       if (bridge) { bridge.isBusy = null; bridge.onRemoteUpdate = null; }
       for (const pending of session.docs.values()) pending.then(pdf => pdf.destroy()).catch(() => {});
     };
-  }, [reload]);
+  }, [reload, location.search]);
   useEffect(() => {
     const warn = e => { if (dirty || busy) { e.preventDefault(); e.returnValue = ''; } };
     window.addEventListener('beforeunload', warn);
